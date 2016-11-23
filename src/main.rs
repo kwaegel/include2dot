@@ -2,13 +2,20 @@
 extern crate clap;
 use clap::{Arg, App};
 
+use std::ops::Index;
 use std::io::{self, Read};
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::ffi::OsStr;
+use std::ffi::{OsString,OsStr};
 
 use std::collections::HashSet;
 use std::collections::HashMap;
+
+extern crate petgraph;
+use petgraph::Graph;
+use petgraph::prelude::NodeIndex;
+use petgraph::visit::EdgeRef;
+use petgraph::dot::{Dot, Config};
 
 extern crate walkdir;
 use walkdir::{DirEntry, WalkDir, WalkDirIterator};
@@ -18,6 +25,8 @@ extern crate lazy_static;
 extern crate regex;
 
 use regex::Regex;
+
+//-----------------------------------------------------------------------------
 
 #[derive(Debug)]
 enum IncludeStatus {
@@ -34,11 +43,11 @@ struct Include {
 }
 
 impl Include {
-    fn new(path: &Path, is_sys: bool, status: IncludeStatus) -> Include {
-        Include{path: PathBuf::from(path),
-            is_system_include: is_sys,
-            status: status}
-    }
+//    fn new(path: &Path, is_sys: bool, status: IncludeStatus) -> Include {
+//        Include{path: PathBuf::from(path),
+//            is_system_include: is_sys,
+//            status: status}
+//    }
 
     fn new_relative(name: &str, is_sys: bool) -> Include {
         Include{path: PathBuf::from(name),
@@ -59,6 +68,8 @@ impl Include {
     }
 }
 
+//-----------------------------------------------------------------------------
+
 fn is_hidden(entry: &DirEntry) -> bool {
     entry.file_name()
         .to_str()
@@ -66,7 +77,9 @@ fn is_hidden(entry: &DirEntry) -> bool {
         .unwrap_or(false)
 }
 
-// Convert a relative include path (e.g. <vector>) into an absolute path for hashing.
+//-----------------------------------------------------------------------------
+
+// Convert a relative include path (e.g. <Windows.h>) into an absolute path.
 fn find_absolute_include_path(include: &Include, local_search_path: &Path, search_paths: &[PathBuf]) -> Include {
 
     let local_full_path = local_search_path.join(&include.path);
@@ -83,11 +96,13 @@ fn find_absolute_include_path(include: &Include, local_search_path: &Path, searc
     include.as_failed_lookup()
 }
 
+//-----------------------------------------------------------------------------
+
 // Return a list of #include statements found in the file
 fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
-    let mut f = try!(File::open(file));
+    let mut f = File::open(file)?;
     let mut text = String::new();
-    try!(f.read_to_string(&mut text));
+    f.read_to_string(&mut text)?;
 
     let mut includes = Vec::new();
 
@@ -111,6 +126,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
     Ok(includes)
 }
 
+//-----------------------------------------------------------------------------
 
 fn main() {
     // TODO: accept extra include paths.
@@ -152,7 +168,7 @@ fn main() {
     extensions.insert(OsStr::new("cpp"));
     extensions.insert(OsStr::new("hpp"));
 
-    let mut files: HashSet<String> = HashSet::new();
+    let mut input_queue: HashSet<String> = HashSet::new();
 
     // Collect all the files to scan
     let walker = WalkDir::new(root_dir).into_iter();
@@ -164,7 +180,7 @@ fn main() {
         match path.extension() {
             Some(ext) => {
                 if extensions.contains(ext) {
-                    files.insert(path.to_str().unwrap().to_owned());
+                    input_queue.insert(path.to_str().unwrap().to_owned());
                 }
             }
             None => {}
@@ -172,9 +188,16 @@ fn main() {
     }
 
     // Maps source_path => Vec<include_path>
-    let mut include_table = HashMap::new();
+    //let mut include_table = HashMap::new();
+    //let mut graph = Graph::<&str, &str>::new();
 
-    for path_str in files {
+    // The graph can only store &str or &osStr, so keep the actual owned strings in a MashMap.
+    //let mut all_files = HashSet::<OsString>::new();
+    //let mut graph = DiGraphMap::<&OsStr, u32>::new();
+    let mut graph = Graph::<OsString, bool>::new();
+    let mut indices = HashMap::<OsString, NodeIndex>::new();
+
+    for path_str in input_queue {
         let path = Path::new(&path_str);
         let includes_result = scan_file_for_includes(path);
         match includes_result {
@@ -186,7 +209,20 @@ fn main() {
                     .map(|inc| find_absolute_include_path(inc, local_dir, &search_paths))
                     .collect();
 
-                include_table.insert(PathBuf::from(path), absolute_includes);
+                for inc in absolute_includes {
+
+                    let src_str: OsString = path.as_os_str().to_owned();
+                    let dst_str: OsString = inc.path.as_os_str().to_owned();
+
+                    // Get the NodeIndex from the cache, on create a new node and add to the cache.
+                    // Current bug: both the hash table and the graph contain owned copies
+                    // of the OsString key. This is wasteful.
+                    // Also, we need to clone the entry result to avoid borrowing the indices table.
+                    let src_node = indices.entry(src_str.clone()).or_insert(graph.add_node(src_str)).clone();
+                    let dst_node = indices.entry(dst_str.clone()).or_insert(graph.add_node(dst_str)).clone();
+
+                    graph.add_edge(src_node.clone(), dst_node.clone(), true);
+                }
             }
             Err(err) => {
                 println!("Unable to process file {:?}: {}", path, err);
@@ -195,10 +231,13 @@ fn main() {
     }
 
     // Print all the includes
-    for (file_path, includes) in include_table {
-        println!("{:?}", file_path);
-        for inc in includes {
-            println!("  {:?}", inc);
+    for node_idx in graph.node_indices() {
+        for edge in graph.edges(node_idx) {
+            let src_str = graph.index(edge.source());
+            let dst_str = graph.index(edge.target());
+            println!("{:?} -> {:?}", src_str, dst_str);
         }
     }
+
+    println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
 }
