@@ -2,19 +2,19 @@
 extern crate clap;
 use clap::{Arg, App};
 
-use std::ops::Index;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::ffi::{OsString,OsStr};
+use std::ffi::{OsString, OsStr};
+use std::error::Error;
 
 use std::collections::HashSet;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 extern crate petgraph;
 use petgraph::Graph;
 use petgraph::prelude::NodeIndex;
-use petgraph::visit::EdgeRef;
 use petgraph::dot::{Dot, Config};
 
 extern crate walkdir;
@@ -26,13 +26,13 @@ extern crate regex;
 
 use regex::Regex;
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 #[derive(Debug)]
 enum IncludeStatus {
-    Relative,     // e.g. <vector>
-    Absolute,     // e.g. /usr/include/c++/4.8/vector
-    FailedLookup, // Failed to locate an absolute include path.
+    Relative, // e.g. <vector>
+    Absolute, // e.g. /usr/include/c++/4.8/vector
+    FailedLookup, // Failed to resolve an absolute file path.
 }
 
 #[derive(Debug)]
@@ -43,32 +43,32 @@ struct Include {
 }
 
 impl Include {
-//    fn new(path: &Path, is_sys: bool, status: IncludeStatus) -> Include {
-//        Include{path: PathBuf::from(path),
-//            is_system_include: is_sys,
-//            status: status}
-//    }
-
     fn new_relative(name: &str, is_sys: bool) -> Include {
-        Include{path: PathBuf::from(name),
+        Include {
+            path: PathBuf::from(name),
             is_system_include: is_sys,
-            status: IncludeStatus::Relative}
+            status: IncludeStatus::Relative,
+        }
     }
 
     fn as_absolute(&self, absolute_path: &Path) -> Include {
-        Include{path: PathBuf::from(absolute_path),
+        Include {
+            path: PathBuf::from(absolute_path),
             is_system_include: self.is_system_include,
-            status: IncludeStatus::Absolute}
+            status: IncludeStatus::Absolute,
+        }
     }
 
     fn as_failed_lookup(&self) -> Include {
-        Include{path: PathBuf::from(&self.path),
+        Include {
+            path: PathBuf::from(&self.path),
             is_system_include: self.is_system_include,
-            status: IncludeStatus::FailedLookup}
+            status: IncludeStatus::FailedLookup,
+        }
     }
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 fn is_hidden(entry: &DirEntry) -> bool {
     entry.file_name()
@@ -77,10 +77,13 @@ fn is_hidden(entry: &DirEntry) -> bool {
         .unwrap_or(false)
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 // Convert a relative include path (e.g. <Windows.h>) into an absolute path.
-fn find_absolute_include_path(include: &Include, local_search_path: &Path, search_paths: &[PathBuf]) -> Include {
+fn find_absolute_include_path(include: &Include,
+                              local_search_path: &Path,
+                              search_paths: &[PathBuf])
+                              -> Include {
 
     let local_full_path = local_search_path.join(&include.path);
     if local_full_path.exists() {
@@ -96,7 +99,7 @@ fn find_absolute_include_path(include: &Include, local_search_path: &Path, searc
     include.as_failed_lookup()
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 // Return a list of #include statements found in the file
 fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
@@ -107,7 +110,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
     let mut includes = Vec::new();
 
     // Use a regex to search for '#include ...' lines.
-    // The (...) capture group isolates just the text, not the "" or <> symbols.
+    // The second (...) capture group isolates just the text, not the "" or <> symbols.
     lazy_static! {
         static ref RE: Regex = Regex::new(r##"#include ([<|"])(.*)[>|"]"##).unwrap();
     }
@@ -118,7 +121,9 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
         let inc_symbol = cap.at(1).unwrap_or("<");
         let is_system_include = inc_symbol == "<";
         match cap.at(2) {
-            Some(include_name) => includes.push(Include::new_relative(include_name, is_system_include)),
+            Some(include_name) => {
+                includes.push(Include::new_relative(include_name, is_system_include))
+            }
             None => {}
         }
     }
@@ -126,7 +131,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
     Ok(includes)
 }
 
-//-----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 fn main() {
     // TODO: accept extra include paths.
@@ -187,13 +192,7 @@ fn main() {
         }
     }
 
-    // Maps source_path => Vec<include_path>
-    //let mut include_table = HashMap::new();
-    //let mut graph = Graph::<&str, &str>::new();
-
-    // The graph can only store &str or &osStr, so keep the actual owned strings in a MashMap.
-    //let mut all_files = HashSet::<OsString>::new();
-    //let mut graph = DiGraphMap::<&OsStr, u32>::new();
+    // Graph of all the tracked files
     let mut graph = Graph::<OsString, bool>::new();
     let mut indices = HashMap::<OsString, NodeIndex>::new();
 
@@ -211,17 +210,23 @@ fn main() {
 
                 for inc in absolute_includes {
 
+                    // Get an existing NodeIndex from the graph, on create a new node.
                     let src_str: OsString = path.as_os_str().to_owned();
                     let dst_str: OsString = inc.path.as_os_str().to_owned();
 
-                    // Get the NodeIndex from the cache, on create a new node and add to the cache.
-                    // Current bug: both the hash table and the graph contain owned copies
-                    // of the OsString key. This is wasteful.
-                    // Also, we need to clone the entry result to avoid borrowing the indices table.
-                    let src_node = indices.entry(src_str.clone()).or_insert(graph.add_node(src_str)).clone();
-                    let dst_node = indices.entry(dst_str.clone()).or_insert(graph.add_node(dst_str)).clone();
+                    // These functions should work, but currently create duplicate nodes.
+                    let src_node = indices.entry(src_str.clone())
+                        .or_insert_with(|| graph.add_node(src_str.clone()))
+                        .clone();
+                    let dst_node = indices.entry(dst_str.clone())
+                        .or_insert_with(|| graph.add_node(dst_str.clone()))
+                        .clone();
 
-                    graph.add_edge(src_node.clone(), dst_node.clone(), true);
+//                    println!("Node {:?}: {:?}", src_node, src_str);
+//                    println!("Node {:?}: {:?}", dst_node, dst_str);
+//                    println!("Node count is now {}\n", graph.node_count());
+
+                    graph.add_edge(src_node, dst_node, true);
                 }
             }
             Err(err) => {
@@ -230,14 +235,28 @@ fn main() {
         };
     }
 
-    // Print all the includes
-    for node_idx in graph.node_indices() {
-        for edge in graph.edges(node_idx) {
-            let src_str = graph.index(edge.source());
-            let dst_str = graph.index(edge.target());
-            println!("{:?} -> {:?}", src_str, dst_str);
-        }
-    }
+    //    // Print all the includes
+    //    for node_idx in graph.node_indices() {
+    //        for edge in graph.edges(node_idx) {
+    //            let src_str = graph.index(edge.source());
+    //            let dst_str = graph.index(edge.target());
+    //            println!("{:?} -> {:?}", src_str, dst_str);
+    //        }
+    //    }
 
-    println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
+    // Write output to file graph.dot
+    let out_path = Path::new("./graph.dot");
+    let out_path_display = out_path.display();
+
+    let mut dotfile = match File::create(&out_path) {
+        Ok(file) => file,
+        Err(why) => panic!("couldn't create {}: {}", out_path_display, why.description()),
+    };
+
+    writeln!(&mut dotfile,
+             "{:?}",
+             Dot::with_config(&graph, &[Config::EdgeNoLabel]));
+
+    println!("Wrote graph to {}", out_path_display);
+    println!("Run 'dot -Tpdf graph.dot > graph.pdf' to create a graph.");
 }
