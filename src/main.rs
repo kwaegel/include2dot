@@ -2,6 +2,7 @@
 extern crate clap;
 use clap::{Arg, App};
 
+use std::fmt;
 use std::io::{self, Read, Write};
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -10,7 +11,6 @@ use std::error::Error;
 
 use std::collections::HashSet;
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 
 extern crate petgraph;
 use petgraph::Graph;
@@ -25,6 +25,22 @@ extern crate lazy_static;
 extern crate regex;
 
 use regex::Regex;
+
+// -----------------------------------------------------------------------------
+
+#[derive(Debug,Clone,PartialEq,Eq,Hash)]
+struct FileNode {
+    path: PathBuf, // Can use is_absolute() and is_relative() to check status.
+    is_system: bool,
+}
+
+impl fmt::Display for FileNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.path.as_path()
+            .file_name()
+            .unwrap_or(OsStr::new("[error getting filename]")))
+    }
+}
 
 // -----------------------------------------------------------------------------
 
@@ -82,7 +98,7 @@ fn is_hidden(entry: &DirEntry) -> bool {
 // Convert a relative include path (e.g. <Windows.h>) into an absolute path.
 fn find_absolute_include_path(include: &Include,
                               local_search_path: &Path,
-                              search_paths: &[PathBuf])
+                              system_search_paths: &[PathBuf])
                               -> Include {
 
     let local_full_path = local_search_path.join(&include.path);
@@ -90,7 +106,7 @@ fn find_absolute_include_path(include: &Include,
         return include.as_absolute(&local_full_path);
     }
 
-    for search_prefix in search_paths {
+    for search_prefix in system_search_paths {
         let full_path = search_prefix.join(&include.path);
         if full_path.exists() {
             return include.as_absolute(&full_path);
@@ -173,6 +189,8 @@ fn main() {
     extensions.insert(OsStr::new("cpp"));
     extensions.insert(OsStr::new("hpp"));
 
+
+
     let mut input_queue: HashSet<String> = HashSet::new();
 
     // Collect all the files to scan
@@ -192,9 +210,11 @@ fn main() {
         }
     }
 
+
+
     // Graph of all the tracked files
-    let mut graph = Graph::<OsString, bool>::new();
-    let mut indices = HashMap::<OsString, NodeIndex>::new();
+    let mut graph = Graph::<FileNode, bool>::new();
+    let mut indices = HashMap::<FileNode, NodeIndex>::new();
 
     for path_str in input_queue {
         let path = Path::new(&path_str);
@@ -211,22 +231,33 @@ fn main() {
                 for inc in absolute_includes {
 
                     // Get an existing NodeIndex from the graph, on create a new node.
-                    let src_str: OsString = path.as_os_str().to_owned();
-                    let dst_str: OsString = inc.path.as_os_str().to_owned();
+                    let src_node = FileNode{path: PathBuf::from(path), is_system: false};
+                    let dst_node = FileNode{path: PathBuf::from(inc.path), is_system: false};
 
                     // These functions should work, but currently create duplicate nodes.
-                    let src_node = indices.entry(src_str.clone())
-                        .or_insert_with(|| graph.add_node(src_str.clone()))
+                    let src_node_idx = indices.entry(src_node.clone())
+                        .or_insert_with(|| graph.add_node(src_node))
                         .clone();
-                    let dst_node = indices.entry(dst_str.clone())
-                        .or_insert_with(|| graph.add_node(dst_str.clone()))
+                    let dst_node_idx = indices.entry(dst_node.clone())
+                        .or_insert_with(|| graph.add_node(dst_node))
                         .clone();
+
+                    //let src_str: OsString = path.as_os_str().to_owned();
+//                    let dst_str: OsString = inc.path.as_os_str().to_owned();
+//
+//                    // These functions should work, but currently create duplicate nodes.
+//                    let src_node_idx = indices.entry(src_str.clone())
+//                        .or_insert_with(|| graph.add_node(src_str.clone()))
+//                        .clone();
+//                    let dst_node_idx = indices.entry(dst_str.clone())
+//                        .or_insert_with(|| graph.add_node(dst_str.clone()))
+//                        .clone();
 
 //                    println!("Node {:?}: {:?}", src_node, src_str);
 //                    println!("Node {:?}: {:?}", dst_node, dst_str);
 //                    println!("Node count is now {}\n", graph.node_count());
 
-                    graph.add_edge(src_node, dst_node, true);
+                    graph.add_edge(src_node_idx, dst_node_idx, true);
                 }
             }
             Err(err) => {
@@ -254,7 +285,7 @@ fn main() {
     };
 
     writeln!(&mut dotfile,
-             "{:?}",
+             "{}",
              Dot::with_config(&graph, &[Config::EdgeNoLabel]));
 
     println!("Wrote graph to {}", out_path_display);
