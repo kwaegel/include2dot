@@ -153,6 +153,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
 
 fn main() {
     // TODO: accept extra include paths.
+    // TODO: accept regex exclusion filters (e.g. stdafx.h)
     let args = App::new("IncludeGraph-rs")
         .version("0.1.0")
         .about("Generates an include graph from a tree of C++ files")
