@@ -6,7 +6,7 @@ use std::fmt;
 use std::io::{self, Read, Write};
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::ffi::{OsString, OsStr};
+use std::ffi::OsStr;
 use std::error::Error;
 
 use std::collections::HashSet;
@@ -18,13 +18,15 @@ use petgraph::prelude::NodeIndex;
 use petgraph::dot::{Dot, Config};
 
 extern crate walkdir;
-use walkdir::{DirEntry, WalkDir, WalkDirIterator};
+use walkdir::{WalkDir, WalkDirIterator};
 
 #[macro_use]
 extern crate lazy_static;
 extern crate regex;
 
 use regex::Regex;
+
+mod path_utils;
 
 // -----------------------------------------------------------------------------
 
@@ -84,35 +86,29 @@ impl Include {
     }
 }
 
-// -----------------------------------------------------------------------------
-
-fn is_hidden(entry: &DirEntry) -> bool {
-    entry.file_name()
-        .to_str()
-        .map(|s| s.starts_with("."))
-        .unwrap_or(false)
-}
-
-// -----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 // Convert a relative include path (e.g. <Windows.h>) into an absolute path.
 fn find_absolute_include_path(include: &Include,
-                              local_search_path: &Path,
+                              parent_file: &Path,
+                              //local_search_path: &Path,
                               system_search_paths: &[PathBuf])
                               -> Include {
 
-    let local_full_path = local_search_path.join(&include.path);
-    if local_full_path.exists() {
-        return include.as_absolute(&local_full_path);
-    }
+    let local_dir = parent_file.parent().unwrap(); // strip the file name
 
-    for search_prefix in system_search_paths {
-        let full_path = search_prefix.join(&include.path);
-        if full_path.exists() {
-            return include.as_absolute(&full_path);
-        }
+    let normalized_path = path_utils::normalize_path_separators(&include.path);
+
+    match path_utils::convert_to_absolute_path(&normalized_path,
+                                               local_dir,
+                                               system_search_paths) {
+        None => {
+            println!("In file {:?}", parent_file);
+            println!("Unable to locate include {:?}", normalized_path);
+            include.as_failed_lookup()
+        },
+        Some(path_buf) => include.as_absolute(path_buf.as_path()),
     }
-    include.as_failed_lookup()
 }
 
 // -----------------------------------------------------------------------------
@@ -166,6 +162,7 @@ fn main() {
             .index(1))
         .get_matches();
 
+    let expand_system_includes = false;
 
     let root_dir_string = match args.value_of("source") {
         Some(path) => path,
@@ -195,7 +192,7 @@ fn main() {
 
     // Collect all the files to scan
     let walker = WalkDir::new(root_dir).into_iter();
-    for entry in walker.filter_entry(|e| !is_hidden(e)) {
+    for entry in walker.filter_entry(|e| !path_utils::is_hidden(e)) {
         let entry = entry.unwrap(); // What error values could there be?
         let path = entry.path().canonicalize().unwrap();
 
@@ -217,21 +214,22 @@ fn main() {
     let mut indices = HashMap::<FileNode, NodeIndex>::new();
 
     for path_str in input_queue {
-        let path = Path::new(&path_str);
-        let includes_result = scan_file_for_includes(path);
+        let parent_file = Path::new(&path_str);
+        let includes_result = scan_file_for_includes(parent_file);
         match includes_result {
             Ok(includes) => {
-                let local_dir = path.parent().unwrap(); // strip the file name
+                //let local_dir = path.parent().unwrap(); // strip the file name
 
                 // Convert relative includes to absolute includes
                 let absolute_includes: Vec<_> = includes.iter()
-                    .map(|inc| find_absolute_include_path(inc, local_dir, &search_paths))
+                    .filter(|inc| !inc.is_system_include || expand_system_includes )
+                    .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
                     .collect();
 
                 for inc in absolute_includes {
 
                     // Get an existing NodeIndex from the graph, on create a new node.
-                    let src_node = FileNode{path: PathBuf::from(path), is_system: false};
+                    let src_node = FileNode{path: PathBuf::from(parent_file), is_system: false};
                     let dst_node = FileNode{path: PathBuf::from(inc.path), is_system: false};
 
                     // These functions should work, but currently create duplicate nodes.
@@ -242,26 +240,11 @@ fn main() {
                         .or_insert_with(|| graph.add_node(dst_node))
                         .clone();
 
-                    //let src_str: OsString = path.as_os_str().to_owned();
-//                    let dst_str: OsString = inc.path.as_os_str().to_owned();
-//
-//                    // These functions should work, but currently create duplicate nodes.
-//                    let src_node_idx = indices.entry(src_str.clone())
-//                        .or_insert_with(|| graph.add_node(src_str.clone()))
-//                        .clone();
-//                    let dst_node_idx = indices.entry(dst_str.clone())
-//                        .or_insert_with(|| graph.add_node(dst_str.clone()))
-//                        .clone();
-
-//                    println!("Node {:?}: {:?}", src_node, src_str);
-//                    println!("Node {:?}: {:?}", dst_node, dst_str);
-//                    println!("Node count is now {}\n", graph.node_count());
-
                     graph.add_edge(src_node_idx, dst_node_idx, true);
                 }
             }
             Err(err) => {
-                println!("Unable to process file {:?}: {}", path, err);
+                println!("Unable to process file {:?}: {}", parent_file, err);
             }
         };
     }
