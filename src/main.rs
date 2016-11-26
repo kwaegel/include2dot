@@ -2,6 +2,7 @@
 extern crate clap;
 use clap::{Arg, App};
 
+use std::ops::Index;
 use std::fmt;
 use std::io::{self, Read, Write};
 use std::fs::File;
@@ -14,6 +15,7 @@ use std::collections::HashMap;
 
 extern crate petgraph;
 use petgraph::Graph;
+use petgraph::visit::EdgeRef;
 use petgraph::prelude::NodeIndex;
 use petgraph::dot::{Dot, Config};
 
@@ -104,7 +106,9 @@ fn find_absolute_include_path(include: &Include,
                                                system_search_paths) {
         None => {
             println!("In file {:?}", parent_file);
-            println!("Unable to locate include {:?}", normalized_path);
+            println!("Unable to locate include {:?}", &include.path);
+            println!("with normalized path {:?}", normalized_path);
+            println!("");
             include.as_failed_lookup()
         },
         Some(path_buf) => include.as_absolute(path_buf.as_path()),
@@ -140,6 +144,8 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
         }
     }
 
+    //println!("Found {} includes in {}", includes.len(), &file.display());
+
     Ok(includes)
 }
 
@@ -169,7 +175,7 @@ fn main() {
         None => panic!("Unable to parse directory argument."),
     };
 
-    println!("Scanning path: {}", root_dir_string);
+    //println!("Scanning path: {}", root_dir_string);
     let root_dir = Path::new(root_dir_string);
 
     if !root_dir.exists() {
@@ -178,7 +184,9 @@ fn main() {
 
     // Create a list of default system include paths.
     let mut search_paths = Vec::new();
-    search_paths.push(PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\include"));
+    if expand_system_includes {
+        search_paths.push(PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\include"));
+    }
 
     // Restrict the file extensions to search.
     let mut extensions = HashSet::new();
@@ -187,23 +195,27 @@ fn main() {
     extensions.insert(OsStr::new("hpp"));
 
 
-
-    let mut input_queue: HashSet<String> = HashSet::new();
+    let mut input_queue: HashSet<PathBuf> = HashSet::new();
 
     // Collect all the files to scan
     let walker = WalkDir::new(root_dir).into_iter();
-    for entry in walker.filter_entry(|e| !path_utils::is_hidden(e)) {
-        let entry = entry.unwrap(); // What error values could there be?
-        let path = entry.path().canonicalize().unwrap();
+    // Note: is_hidden() is currently hiding paths that start with './', and should be fixed.
+    //for entry in walker.filter_entry(|e| !path_utils::is_hidden(e)) {
+    for entry in walker {
+        match entry {
+            Ok(entry) => {
+                let path_buf = PathBuf::from(entry.path());
 
-        // If the file extension matches our set, queue full path for processing.
-        match path.extension() {
-            Some(ext) => {
-                if extensions.contains(ext) {
-                    input_queue.insert(path.to_str().unwrap().to_owned());
+                // If the file extension matches our set, queue full path for processing.
+                let has_matching_ext = path_buf.extension().map_or(false, |ext| extensions.contains(ext));
+                if has_matching_ext {
+                    //println!("Found file {}", &path_buf.display());
+                    input_queue.insert(path_buf);
                 }
-            }
-            None => {}
+            },
+            Err(what) => {
+                println!("Error reading file: {}", what.description());
+            },
         }
     }
 
@@ -213,12 +225,13 @@ fn main() {
     let mut graph = Graph::<FileNode, bool>::new();
     let mut indices = HashMap::<FileNode, NodeIndex>::new();
 
-    for path_str in input_queue {
-        let parent_file = Path::new(&path_str);
+    for path_buf in input_queue {
+        let parent_file = path_buf.as_path();
         let includes_result = scan_file_for_includes(parent_file);
         match includes_result {
             Ok(includes) => {
-                //let local_dir = path.parent().unwrap(); // strip the file name
+
+                //println!("Processing file {}", parent_file.display());
 
                 // Convert relative includes to absolute includes
                 let absolute_includes: Vec<_> = includes.iter()
@@ -226,11 +239,13 @@ fn main() {
                     .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
                     .collect();
 
+                //println!("Found {} absolute includes", absolute_includes.len());
+
                 for inc in absolute_includes {
 
                     // Get an existing NodeIndex from the graph, on create a new node.
-                    let src_node = FileNode{path: PathBuf::from(parent_file), is_system: false};
-                    let dst_node = FileNode{path: PathBuf::from(inc.path), is_system: false};
+                    let src_node = FileNode{path: PathBuf::from(&parent_file), is_system: false};
+                    let dst_node = FileNode{path: PathBuf::from(&inc.path), is_system: false};
 
                     // These functions should work, but currently create duplicate nodes.
                     let src_node_idx = indices.entry(src_node.clone())
@@ -240,7 +255,33 @@ fn main() {
                         .or_insert_with(|| graph.add_node(dst_node))
                         .clone();
 
+                    //println!("Adding edge {:?} -> {:?}", src_node_idx, dst_node_idx);
                     graph.add_edge(src_node_idx, dst_node_idx, true);
+                }
+
+                if !expand_system_includes {
+                    let system_includes: Vec<_> = includes.iter()
+                        .filter(|inc| inc.is_system_include && !expand_system_includes)
+                        .collect();
+
+                    for inc in system_includes {
+
+                        // Get an existing NodeIndex from the graph, on create a new node.
+                        let src_node = FileNode{path: PathBuf::from(&parent_file), is_system: false};
+                        let dst_node = FileNode{path: PathBuf::from(&inc.path), is_system: true};
+
+                        // These functions should work, but currently create duplicate nodes.
+                        let src_node_idx = indices.entry(src_node.clone())
+                            .or_insert_with(|| graph.add_node(src_node))
+                            .clone();
+                        let dst_node_idx = indices.entry(dst_node.clone())
+                            .or_insert_with(|| graph.add_node(dst_node))
+                            .clone();
+
+                        //println!("Adding edge {:?} -> {:?}", src_node_idx, dst_node_idx);
+                        graph.add_edge(src_node_idx, dst_node_idx, true);
+                    }
+
                 }
             }
             Err(err) => {
@@ -249,14 +290,14 @@ fn main() {
         };
     }
 
-    //    // Print all the includes
-    //    for node_idx in graph.node_indices() {
-    //        for edge in graph.edges(node_idx) {
-    //            let src_str = graph.index(edge.source());
-    //            let dst_str = graph.index(edge.target());
-    //            println!("{:?} -> {:?}", src_str, dst_str);
-    //        }
-    //    }
+    // Print all the includes
+//    for node_idx in graph.node_indices() {
+//        for edge in graph.edges(node_idx) {
+//            let src_str = graph.index(edge.source());
+//            let dst_str = graph.index(edge.target());
+//            println!("{:?} -> {:?}", src_str, dst_str);
+//        }
+//    }
 
     // Write output to file graph.dot
     let out_path = Path::new("./graph.dot");

@@ -2,6 +2,8 @@
 extern crate walkdir;
 use walkdir::DirEntry;
 
+use std::env;
+use std::error::Error;
 use std::path::{Path, PathBuf};
 
 // ----------------------------------------------------------------------------
@@ -44,6 +46,9 @@ pub fn convert_to_absolute_path(relative_path: &Path,
     if full_path.exists() {
         return Some(full_path);
     }
+    else {
+        println!("Unable to locate {:?}", full_path);
+    }
 
     // Then search system include paths
     for search_prefix in system_search_paths {
@@ -51,14 +56,59 @@ pub fn convert_to_absolute_path(relative_path: &Path,
         if full_path.exists() {
             return Some(full_path);
         }
+        else {
+            println!("Unable to locate {:?}", full_path);
+        }
     }
-
-    // Note: path.join() currenly breaks because the relative pathing in C++ uses Unix seperators.
-    // Need to normalize seperators.
-    //println!("Failed to get absolute path for {:?}", relative_path);
-    //println!("Local joined path: {:?}", full_path);
-    //include.as_failed_lookup()
     return None;
 }
 
 // ----------------------------------------------------------------------------
+
+#[test]
+fn test_relative_path() {
+    let project_dir = env::current_dir().unwrap();
+    println!("{:?}", project_dir);
+
+    let example_dir = project_dir.join("example_tree");
+    println!("{:?}", example_dir);
+
+    // Check if file exists
+    let file_a = example_dir.join("inc_1.h");
+    println!("{:?}", file_a);
+    assert!(file_a.exists());
+
+    let file_b = example_dir.join("subdir").join("..").join("inc_1.h");
+    println!("{:?}", file_b);
+    assert!(file_b.exists());
+
+    // This fails for some reason. Unable to parse the relative path after calling canonicalize()?
+    let file_b = example_dir.canonicalize().unwrap().join("subdir").join("..").join("inc_1.h");
+    println!("{:?}", file_b);
+    assert!(file_b.exists());
+
+//    let file_a_canonical = file_a.canonicalize().unwrap();
+//    println!("{:?}", file_a_canonical);
+//    assert!(file_a_canonical.exists());
+//
+//    // Check if relative file exists
+//    let relative_file_a = example_dir.join("subdir")
+//        .join("..")
+//        .join("inc_1.h");
+//    println!("{:?}", relative_file_a);
+//    assert!(relative_file_a.exists());
+//
+//    let relative_file_a_canonical = file_a.canonicalize().unwrap();
+//    println!("{:?}", relative_file_a_canonical);
+//    assert!(relative_file_a_canonical.exists());
+//
+//    // Check fixed relative path path
+//    let file_b_relative = PathBuf::from("C:\\Users\\Ky\\dev\\rust_include_graph\\example_tree\\subdir\\..\\inc_1.h");
+//    println!("{:?}", file_b_relative);
+//    assert!(file_b_relative.exists());
+//
+//    // Check UNC path
+//    let file_b = PathBuf::from("\\\\?\\C:\\Users\\Ky\\dev\\rust_include_graph\\example_tree\\subdir\\..\\inc_1.h");
+//    println!("{:?}", file_b);
+//    assert!(file_b.exists());
+}
