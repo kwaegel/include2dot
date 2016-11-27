@@ -107,7 +107,7 @@ fn find_absolute_include_path(include: &Include,
         None => {
             println!("In file {:?}", parent_file);
             println!("Unable to locate include {:?}", &include.path);
-            println!("with normalized path {:?}", normalized_path);
+            //println!("with normalized path {:?}", normalized_path);
             println!("");
             include.as_failed_lookup()
         },
@@ -191,9 +191,13 @@ fn main() {
 
     // Restrict the file extensions to search.
     let mut extensions = HashSet::new();
-    extensions.insert(OsStr::new("h"));
+    extensions.insert(OsStr::new("c"));
+    extensions.insert(OsStr::new("cc"));
     extensions.insert(OsStr::new("cpp"));
+    extensions.insert(OsStr::new("cxx"));
+    extensions.insert(OsStr::new("h"));
     extensions.insert(OsStr::new("hpp"));
+    extensions.insert(OsStr::new("hxx"));
 
 
     let mut input_queue: HashSet<PathBuf> = HashSet::new();
@@ -309,6 +313,13 @@ fn main() {
         Err(why) => panic!("couldn't create {}: {}", out_path_display, why.description()),
     };
 
+    // TODO: print the dot file with the following header to avoid max-width issues.
+    //    overlap=scale;
+    //    size="80,100";
+    //    ratio="fill";
+    //    fontsize="16";
+    //    fontname="Helvetica";
+    //    clusterrank="local";
     writeln!(&mut dotfile,
              "{}",
              Dot::with_config(&graph, &[Config::EdgeNoLabel]));
