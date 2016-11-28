@@ -317,13 +317,13 @@ quote - parse only \"user\" includes (\"\")\n")
                 // Convert relative includes to absolute includes
                 let absolute_includes: Vec<_> = includes.iter()
                     .filter(|inc| !inc.is_system_include || expand_system_includes )
+                    .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
                     .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
                     .collect();
 
                 //println!("Found {} absolute includes", absolute_includes.len());
 
                 for inc in absolute_includes {
-
                     // Get an existing NodeIndex from the graph, on create a new node.
                     let src_node = FileNode{path: PathBuf::from(&parent_file), is_system: false};
                     let dst_node = FileNode{path: PathBuf::from(&inc.path), is_system: false};
@@ -343,6 +343,7 @@ quote - parse only \"user\" includes (\"\")\n")
                 if !expand_system_includes {
                     let system_includes: Vec<_> = includes.iter()
                         .filter(|inc| inc.is_system_include && !expand_system_includes)
+                        .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
                         .collect();
 
                     for inc in system_includes {

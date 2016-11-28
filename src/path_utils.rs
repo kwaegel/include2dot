@@ -81,6 +81,21 @@ pub fn filename_matches_regex(regex: &Option<Regex>, path: &Path) -> bool {
 
 // ----------------------------------------------------------------------------
 
+// Returns false if:
+// * Filename does not exist.
+// * Filename can't be parsed.
+// * Filename does not match the regex.
+// * Regex is empty.
+pub fn name_matches_regex(regex: &Option<Regex>, name: &Path) -> bool {
+
+    let filename = name.to_str().unwrap_or("");
+    let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
+    println!("checking {:?}: {}", name, is_match);
+    is_match
+}
+
+// ----------------------------------------------------------------------------
+
 #[test]
 fn test_relative_path() {
     let project_dir = env::current_dir().unwrap();
