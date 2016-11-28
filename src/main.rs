@@ -186,7 +186,8 @@ fn main() {
             .takes_value(true))
         .arg(Arg::with_name("exclude")
             .long("exclude")
-            .help("Specify a regular expression of filenames to ignore. \nRust/RE2 syntax.")
+            .help("Specify a regular expression of filenames to ignore. \nRust/RE2 syntax.\n\
+            \tExample: --exclude=\"test_|noisyFile\"")
             .takes_value(true))
         .arg(Arg::with_name("merge")
             .long("merge")

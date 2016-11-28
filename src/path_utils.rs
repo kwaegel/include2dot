@@ -75,9 +75,7 @@ pub fn filename_matches_regex(regex: &Option<Regex>, path: &Path) -> bool {
 
     let filename = path.file_name().map_or("", |name| name.to_str().unwrap_or(""));
     let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
-
-    println!("checking {:?}: {}", path, is_match);
-
+    //println!("checking {:?}: {}", path, is_match);
     is_match
 }
 
