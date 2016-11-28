@@ -2,9 +2,7 @@
 extern crate clap;
 use clap::{Arg, App};
 
-use std::ops::Index;
-use std::fmt;
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
@@ -15,12 +13,10 @@ use std::collections::HashMap;
 
 extern crate petgraph;
 use petgraph::Graph;
-use petgraph::visit::EdgeRef;
 use petgraph::prelude::NodeIndex;
-use petgraph::dot::{Dot, Config};
 
 extern crate walkdir;
-use walkdir::{WalkDir, WalkDirIterator};
+use walkdir::WalkDir;
 
 #[macro_use]
 extern crate lazy_static;
@@ -30,21 +26,10 @@ use regex::Regex;
 
 mod path_utils;
 
-// -----------------------------------------------------------------------------
+mod dot_writer;
 
-#[derive(Debug,Clone,PartialEq,Eq,Hash)]
-struct FileNode {
-    path: PathBuf, // Can use is_absolute() and is_relative() to check status.
-    is_system: bool,
-}
-
-impl fmt::Display for FileNode {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.path.as_path()
-            .file_name()
-            .unwrap_or(OsStr::new("[error getting filename]")))
-    }
-}
+mod file_node;
+use file_node::FileNode;
 
 // -----------------------------------------------------------------------------
 
@@ -295,35 +280,6 @@ fn main() {
         };
     }
 
-    // Print all the includes
-//    for node_idx in graph.node_indices() {
-//        for edge in graph.edges(node_idx) {
-//            let src_str = graph.index(edge.source());
-//            let dst_str = graph.index(edge.target());
-//            println!("{:?} -> {:?}", src_str, dst_str);
-//        }
-//    }
-
-    // Write output to file graph.dot
-    let out_path = Path::new("./graph.dot");
-    let out_path_display = out_path.display();
-
-    let mut dotfile = match File::create(&out_path) {
-        Ok(file) => file,
-        Err(why) => panic!("couldn't create {}: {}", out_path_display, why.description()),
-    };
-
-    // TODO: print the dot file with the following header to avoid max-width issues.
-    //    overlap=scale;
-    //    size="80,100";
-    //    ratio="fill";
-    //    fontsize="16";
-    //    fontname="Helvetica";
-    //    clusterrank="local";
-    writeln!(&mut dotfile,
-             "{}",
-             Dot::with_config(&graph, &[Config::EdgeNoLabel]));
-
-    println!("Wrote graph to {}", out_path_display);
-    println!("Run 'dot -Tpdf graph.dot > graph.pdf' to create a graph.");
+    // Write the graph to a dot file.
+    let _ = dot_writer::write_dot_with_header("./graph.dot", &graph);
 }

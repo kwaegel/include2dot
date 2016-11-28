@@ -2,12 +2,13 @@
 extern crate walkdir;
 use walkdir::DirEntry;
 
-use std::env;
-use std::error::Error;
+//use std::env;
+//use std::error::Error;
 use std::path::{Path, PathBuf};
 
 // ----------------------------------------------------------------------------
 
+#[allow(dead_code)]
 pub fn is_hidden(entry: &DirEntry) -> bool {
     entry.file_name()
         .to_str()
