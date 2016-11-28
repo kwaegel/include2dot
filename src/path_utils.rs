@@ -2,8 +2,8 @@
 extern crate walkdir;
 use walkdir::DirEntry;
 
-//use std::env;
-//use std::error::Error;
+use regex::Regex;
+
 use std::path::{Path, PathBuf};
 
 // ----------------------------------------------------------------------------
@@ -66,6 +66,23 @@ pub fn convert_to_absolute_path(relative_path: &Path,
 
 // ----------------------------------------------------------------------------
 
+// Returns false if:
+// * Filename does not exist.
+// * Filename can't be parsed.
+// * Filename does not match the regex.
+// * Regex is empty.
+pub fn filename_matches_regex(regex: &Option<Regex>, path: &Path) -> bool {
+
+    let filename = path.file_name().map_or("", |name| name.to_str().unwrap_or(""));
+    let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
+
+    println!("checking {:?}: {}", path, is_match);
+
+    is_match
+}
+
+// ----------------------------------------------------------------------------
+
 #[test]
 fn test_relative_path() {
     let project_dir = env::current_dir().unwrap();
@@ -87,29 +104,4 @@ fn test_relative_path() {
     let file_b = example_dir.canonicalize().unwrap().join("subdir").join("..").join("inc_1.h");
     println!("{:?}", file_b);
     assert!(file_b.exists());
-
-//    let file_a_canonical = file_a.canonicalize().unwrap();
-//    println!("{:?}", file_a_canonical);
-//    assert!(file_a_canonical.exists());
-//
-//    // Check if relative file exists
-//    let relative_file_a = example_dir.join("subdir")
-//        .join("..")
-//        .join("inc_1.h");
-//    println!("{:?}", relative_file_a);
-//    assert!(relative_file_a.exists());
-//
-//    let relative_file_a_canonical = file_a.canonicalize().unwrap();
-//    println!("{:?}", relative_file_a_canonical);
-//    assert!(relative_file_a_canonical.exists());
-//
-//    // Check fixed relative path path
-//    let file_b_relative = PathBuf::from("C:\\Users\\Ky\\dev\\rust_include_graph\\example_tree\\subdir\\..\\inc_1.h");
-//    println!("{:?}", file_b_relative);
-//    assert!(file_b_relative.exists());
-//
-//    // Check UNC path
-//    let file_b = PathBuf::from("\\\\?\\C:\\Users\\Ky\\dev\\rust_include_graph\\example_tree\\subdir\\..\\inc_1.h");
-//    println!("{:?}", file_b);
-//    assert!(file_b.exists());
 }

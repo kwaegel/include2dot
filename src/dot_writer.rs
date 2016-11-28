@@ -22,8 +22,9 @@ pub fn write_dot_with_header(filename: &str, graph: &Graph<FileNode, bool>) -> R
     // Write layout header. This is the part that petgraph can't do yet.
     writeln!(&mut dotfile, "    overlap=scale;")?;
     writeln!(&mut dotfile, "    size=\"80,100\";")?;
-    writeln!(&mut dotfile, "    ratio=\"compress\";")?;
     //writeln!(&mut dotfile, "    ratio=\"fill\";")?;
+    //writeln!(&mut dotfile, "    ratio=\"compress\";")?;
+    writeln!(&mut dotfile, "    ratio=0.8;")?;
     writeln!(&mut dotfile, "    fontsize=\"16\";")?;
     writeln!(&mut dotfile, "    fontname=\"Helvetica\";")?;
     writeln!(&mut dotfile, "    clusterrank=\"local\";")?;

@@ -1,4 +1,5 @@
 
+#[macro_use]
 extern crate clap;
 use clap::{Arg, App};
 
@@ -78,7 +79,6 @@ impl Include {
 // Convert a relative include path (e.g. <Windows.h>) into an absolute path.
 fn find_absolute_include_path(include: &Include,
                               parent_file: &Path,
-                              //local_search_path: &Path,
                               system_search_paths: &[PathBuf])
                               -> Include {
 
@@ -92,7 +92,6 @@ fn find_absolute_include_path(include: &Include,
         None => {
             println!("In file {:?}", parent_file);
             println!("Unable to locate include {:?}", &include.path);
-            //println!("with normalized path {:?}", normalized_path);
             println!("");
             include.as_failed_lookup()
         },
@@ -136,19 +135,91 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
 
 // -----------------------------------------------------------------------------
 
+// TODO: implement the command line arguments from the original 'cinclude2dot' project.
+//--debug       Display various debug info
+//--exclude     Specify a regular expression of filenames to ignore
+//              For example, ignore your test harnesses.
+//--merge       Granularity of the diagram:
+//              file - the default, treats each file as separate
+//              module - merges .c/.cc/.cpp/.cxx and .h/.hpp/.hxx pairs
+//              directory - merges directories into one node
+//--groups      Cluster files or modules into directory groups
+//--help        Display this help page.
+//--include     Followed by a comma separated list of include search paths.
+//--paths       Leaves relative paths in displayed filenames.
+//--quotetypes  Select for parsing the files included by strip quotes or angle brackets:
+//              both - the default, parse all headers.
+//              angle - include only "system" headers included by anglebrackets (<>)
+//              quote - include only "user" headers included by strip quotes ("")
+//--src         Followed by a path to the source code, defaults to current directory
+
+arg_enum! {
+    #[derive(Debug)]
+    #[allow(non_camel_case_types)]
+    enum MergeType {
+        file,
+        module,
+        directory
+    }
+}
+
+arg_enum! {
+    #[derive(Debug)]
+    #[allow(non_camel_case_types)]
+    enum QuoteTypes {
+        both,
+        angle,
+        quote
+    }
+}
+
 fn main() {
     // TODO: accept extra include paths.
     // TODO: accept regex exclusion filters (e.g. stdafx.h)
     let args = App::new("IncludeGraph-rs")
-        .version("0.1.0")
+        .version(crate_version!())
+        .author(crate_authors!())
         .about("Generates an include graph from a tree of C++ files")
-//        .arg(Arg::with_name("output_format")
-//            .help("The output format to produce: PDF, DOT, PNG")
-//            .value_name("OUTPUT")
-//            .short("o"))
-        .arg(Arg::with_name("source")
-            .help("The source directory to scan")
-            .value_name("PATH")
+        .arg(Arg::with_name("debug")
+            .long("debug")
+            .help("Display extra debug info")
+            .takes_value(true))
+        .arg(Arg::with_name("exclude")
+            .long("exclude")
+            .help("Specify a regular expression of filenames to ignore. \nRust/RE2 syntax.")
+            .takes_value(true))
+        .arg(Arg::with_name("merge")
+            .long("merge")
+            .help("Granularity of the diagram: \n\
+file - the default, treats each file as separate \n\
+module - merges .c/.cc/.cpp/.cxx and .h/.hpp/.hxx pairs \n\
+directory - merges directories into one node\n")
+            .possible_values(&MergeType::variants())
+            .default_value("file")
+            .takes_value(true))
+        .arg(Arg::with_name("groups")
+            .long("groups")
+            .help("Cluster files or modules into directory groups")
+            .takes_value(true))
+        .arg(Arg::with_name("include")
+            .long("include")
+            .help("Comma separated list of include search paths.")
+            .takes_value(true))
+        .arg(Arg::with_name("paths")
+            .long("paths")
+            .help("Leaves relative paths in displayed filenames.")
+            .takes_value(true))
+        .arg(Arg::with_name("quotetypes")
+            .long("quotetypes")
+            .help("Select which type of includes to parse:\n\
+both - the default, parse all includes. \n\
+angle - parse only \"system\" includes (<>) \n\
+quote - parse only \"user\" includes (\"\")\n")
+            .possible_values(&QuoteTypes::variants())
+            .default_value("both")
+            .takes_value(true))
+        .arg(Arg::with_name("src")
+            .help("Path to the source code, defaults to current directory.")
             .required(true)
             .multiple(false)
             .index(1))
@@ -156,12 +227,12 @@ fn main() {
 
     let expand_system_includes = false;
 
-    let root_dir_string = match args.value_of("source") {
+    let root_dir_string = match args.value_of("src") {
         Some(path) => path,
-        None => panic!("Unable to parse directory argument."),
+        None => panic!("Unable to parse source directory argument."),
     };
 
-    //println!("Scanning path: {}", root_dir_string);
+    println!("Scanning path: {}", root_dir_string);
     let root_dir = Path::new(root_dir_string);
 
     if !root_dir.exists() {
@@ -185,6 +256,20 @@ fn main() {
     extensions.insert(OsStr::new("hxx"));
 
 
+
+    // Regular expression of files to exclude. Skip if exclude string is empty.
+    let exclude_regex = match args.is_present("exclude") {
+        true => {
+            let exclude_regex_string = args.value_of("exclude").unwrap_or("");
+            match Regex::new(exclude_regex_string) {
+                Ok(regex) => Some(regex),
+                Err(what) => {panic!("Unable to parse exclude regex: {}", what.description());}
+            }
+        }
+        _ => None,
+    };
+
+
     let mut input_queue: HashSet<PathBuf> = HashSet::new();
 
     // Collect all the files to scan
@@ -194,13 +279,18 @@ fn main() {
     for entry in walker {
         match entry {
             Ok(entry) => {
-                let path_buf = PathBuf::from(entry.path());
+                let path = PathBuf::from(entry.path());
 
                 // If the file extension matches our set, queue full path for processing.
-                let has_matching_ext = path_buf.extension().map_or(false, |ext| extensions.contains(ext));
+                let has_matching_ext = path.extension().map_or(false, |ext| extensions.contains(ext));
                 if has_matching_ext {
-                    //println!("Found file {}", &path_buf.display());
-                    input_queue.insert(path_buf);
+
+                    // Check for regex filename exclusion.
+                    if !path_utils::filename_matches_regex(&exclude_regex, &path) {
+
+                        //println!("Found file {}", &path_buf.display());
+                        input_queue.insert(path);
+                    }
                 }
             },
             Err(what) => {
@@ -282,4 +372,6 @@ fn main() {
 
     // Write the graph to a dot file.
     let _ = dot_writer::write_dot_with_header("./graph.dot", &graph);
+
+    println!("Now run \"dot -Tpdf graph.dot > graph.pdf\" to render the graph.");
 }
