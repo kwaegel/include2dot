@@ -90,7 +90,7 @@ pub fn name_matches_regex(regex: &Option<Regex>, name: &Path) -> bool {
 
     let filename = name.to_str().unwrap_or("");
     let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
-    println!("checking {:?}: {}", name, is_match);
+    //println!("checking {:?}: {}", name, is_match);
     is_match
 }
 
