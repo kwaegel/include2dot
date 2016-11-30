@@ -30,7 +30,7 @@ pub fn normalize_path_separators(path: &Path) -> PathBuf {
             }
             composite_path
         }
-        None => path.to_path_buf()
+        None => path.to_path_buf(),
     }
 }
 
@@ -47,9 +47,9 @@ pub fn convert_to_absolute_path(relative_path: &Path,
     if full_path.exists() {
         return Some(full_path);
     }
-//    else {
-//        println!("Unable to locate {:?}", full_path);
-//    }
+    //    else {
+    //        println!("Unable to locate {:?}", full_path);
+    //    }
 
     // Then search system include paths
     for search_prefix in system_search_paths {
@@ -57,9 +57,9 @@ pub fn convert_to_absolute_path(relative_path: &Path,
         if full_path.exists() {
             return Some(full_path);
         }
-//        else {
-//            println!("Unable to locate {:?}", full_path);
-//        }
+        //        else {
+        //            println!("Unable to locate {:?}", full_path);
+        //        }
     }
     return None;
 }
@@ -75,7 +75,7 @@ pub fn filename_matches_regex(regex: &Option<Regex>, path: &Path) -> bool {
 
     let filename = path.file_name().map_or("", |name| name.to_str().unwrap_or(""));
     let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
-    //println!("checking {:?}: {}", path, is_match);
+    // println!("checking {:?}: {}", path, is_match);
     is_match
 }
 
@@ -90,7 +90,7 @@ pub fn name_matches_regex(regex: &Option<Regex>, name: &Path) -> bool {
 
     let filename = name.to_str().unwrap_or("");
     let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
-    //println!("checking {:?}: {}", name, is_match);
+    // println!("checking {:?}: {}", name, is_match);
     is_match
 }
 

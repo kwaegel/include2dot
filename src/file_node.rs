@@ -11,8 +11,11 @@ pub struct FileNode {
 
 impl fmt::Display for FileNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.path.as_path()
-            .file_name()
-            .unwrap_or(OsStr::new("[error getting filename]")))
+        write!(f,
+               "{:?}",
+               self.path
+                   .as_path()
+                   .file_name()
+                   .unwrap_or(OsStr::new("[error getting filename]")))
     }
 }

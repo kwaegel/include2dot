@@ -11,7 +11,9 @@ use std::fs::File;
 use file_node::FileNode;
 
 // The simple dot writer in petgraph is not sufficient, so implement one here.
-pub fn write_dot_with_header(filename: &str, graph: &Graph<FileNode, bool>) -> Result<(), io::Error> {
+pub fn write_dot_with_header(filename: &str,
+                             graph: &Graph<FileNode, bool>)
+                             -> Result<(), io::Error> {
 
     let out_path = Path::new(filename);
     let mut dotfile = File::create(&out_path)?;
@@ -22,8 +24,8 @@ pub fn write_dot_with_header(filename: &str, graph: &Graph<FileNode, bool>) -> R
     // Write layout header. This is the part that petgraph can't do yet.
     writeln!(&mut dotfile, "    overlap=scale;")?;
     writeln!(&mut dotfile, "    size=\"80,100\";")?;
-    //writeln!(&mut dotfile, "    ratio=\"fill\";")?;
-    //writeln!(&mut dotfile, "    ratio=\"compress\";")?;
+    // writeln!(&mut dotfile, "    ratio=\"fill\";")?;
+    // writeln!(&mut dotfile, "    ratio=\"compress\";")?;
     writeln!(&mut dotfile, "    ratio=0.8;")?;
     writeln!(&mut dotfile, "    fontsize=\"16\";")?;
     writeln!(&mut dotfile, "    fontname=\"Helvetica\";")?;
@@ -35,7 +37,7 @@ pub fn write_dot_with_header(filename: &str, graph: &Graph<FileNode, bool>) -> R
     for node_idx in graph.node_indices() {
         let integer_idx = graph.to_index(node_idx);
         let ref node_ref = graph[node_idx];
-        //println!("    {} [label={}]", integer_idx, node_ref);
+        // println!("    {} [label={}]", integer_idx, node_ref);
         writeln!(&mut dotfile, "    {} [label={}]", integer_idx, node_ref)?;
     }
 
@@ -45,7 +47,7 @@ pub fn write_dot_with_header(filename: &str, graph: &Graph<FileNode, bool>) -> R
     for edge in graph.edge_references() {
         let src_idx = graph.to_index(edge.source());
         let dst_idx = graph.to_index(edge.target());
-        //println!("    {} -> {}", src_idx, dst_idx);
+        // println!("    {} -> {}", src_idx, dst_idx);
         writeln!(&mut dotfile, "    {} -> {}", src_idx, dst_idx)?;
     }
 

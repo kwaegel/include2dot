@@ -86,15 +86,13 @@ fn find_absolute_include_path(include: &Include,
 
     let normalized_path = path_utils::normalize_path_separators(&include.path);
 
-    match path_utils::convert_to_absolute_path(&normalized_path,
-                                               local_dir,
-                                               system_search_paths) {
+    match path_utils::convert_to_absolute_path(&normalized_path, local_dir, system_search_paths) {
         None => {
             println!("In file {:?}", parent_file);
             println!("Unable to locate include {:?}", &include.path);
             println!("");
             include.as_failed_lookup()
-        },
+        }
         Some(path_buf) => include.as_absolute(path_buf.as_path()),
     }
 }
@@ -128,7 +126,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
         }
     }
 
-    //println!("Found {} includes in {}", includes.len(), &file.display());
+    // println!("Found {} includes in {}", includes.len(), &file.display());
 
     Ok(includes)
 }
@@ -136,22 +134,22 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
 // -----------------------------------------------------------------------------
 
 // TODO: implement the command line arguments from the original 'cinclude2dot' project.
-//--debug       Display various debug info
-//--exclude     Specify a regular expression of filenames to ignore
+// --debug       Display various debug info
+// --exclude     Specify a regular expression of filenames to ignore
 //              For example, ignore your test harnesses.
-//--merge       Granularity of the diagram:
+// --merge       Granularity of the diagram:
 //              file - the default, treats each file as separate
 //              module - merges .c/.cc/.cpp/.cxx and .h/.hpp/.hxx pairs
 //              directory - merges directories into one node
-//--groups      Cluster files or modules into directory groups
-//--help        Display this help page.
-//--include     Followed by a comma separated list of include search paths.
-//--paths       Leaves relative paths in displayed filenames.
-//--quotetypes  Select for parsing the files included by strip quotes or angle brackets:
+// --groups      Cluster files or modules into directory groups
+// --help        Display this help page.
+// --include     Followed by a comma separated list of include search paths.
+// --paths       Leaves relative paths in displayed filenames.
+// --quotetypes  Select for parsing the files included by strip quotes or angle brackets:
 //              both - the default, parse all headers.
 //              angle - include only "system" headers included by anglebrackets (<>)
 //              quote - include only "user" headers included by strip quotes ("")
-//--src         Followed by a path to the source code, defaults to current directory
+// --src         Followed by a path to the source code, defaults to current directory
 
 arg_enum! {
     #[derive(Debug)]
@@ -175,7 +173,6 @@ arg_enum! {
 
 fn main() {
     // TODO: accept extra include paths.
-    // TODO: accept regex exclusion filters (e.g. stdafx.h)
     let args = App::new("IncludeGraph-rs")
         .version(crate_version!())
         .author(crate_authors!())
@@ -186,15 +183,14 @@ fn main() {
             .takes_value(true))
         .arg(Arg::with_name("exclude")
             .long("exclude")
-            .help("Specify a regular expression of filenames to ignore. \nRust/RE2 syntax.\n\
-            \tExample: --exclude=\"test_|noisyFile\"")
+            .help("Specify a regular expression of filenames to ignore. \nRust/RE2 \
+                   syntax.\n\tExample: --exclude=\"test_|noisyFile\"")
             .takes_value(true))
         .arg(Arg::with_name("merge")
             .long("merge")
-            .help("Granularity of the diagram: \n\
-file - the default, treats each file as separate \n\
-module - merges .c/.cc/.cpp/.cxx and .h/.hpp/.hxx pairs \n\
-directory - merges directories into one node\n")
+            .help("Granularity of the diagram: \nfile - the default, treats each file as \
+                   separate \nmodule - merges .c/.cc/.cpp/.cxx and .h/.hpp/.hxx pairs \
+                   \ndirectory - merges directories into one node\n")
             .possible_values(&MergeType::variants())
             .default_value("file")
             .takes_value(true))
@@ -212,10 +208,9 @@ directory - merges directories into one node\n")
             .takes_value(true))
         .arg(Arg::with_name("quotetypes")
             .long("quotetypes")
-            .help("Select which type of includes to parse:\n\
-both - the default, parse all includes. \n\
-angle - parse only \"system\" includes (<>) \n\
-quote - parse only \"user\" includes (\"\")\n")
+            .help("Select which type of includes to parse:\nboth - the default, parse all \
+                   includes. \nangle - parse only \"system\" includes (<>) \nquote - parse only \
+                   \"user\" includes (\"\")\n")
             .possible_values(&QuoteTypes::variants())
             .default_value("both")
             .takes_value(true))
@@ -259,48 +254,23 @@ quote - parse only \"user\" includes (\"\")\n")
 
 
     // Regular expression of files to exclude. Skip if exclude string is empty.
-    let exclude_regex = match args.is_present("exclude") {
-        true => {
-            let exclude_regex_string = args.value_of("exclude").unwrap_or("");
-            match Regex::new(exclude_regex_string) {
-                Ok(regex) => Some(regex),
-                Err(what) => {panic!("Unable to parse exclude regex: {}", what.description());}
-            }
-        }
-        _ => None,
-    };
+    let exclude_regex = args.value_of("exclude")
+        .and_then(|ref regex_str| {
+            Regex::new(regex_str)
+                .map_err(|err| panic!("Unable to parse exclude regex: {}", err.description()))
+                .ok() // Converts successful result to Some(), discarding errors.
+        });
 
 
-    let mut input_queue: HashSet<PathBuf> = HashSet::new();
-
-    // Collect all the files to scan
-    let walker = WalkDir::new(root_dir).into_iter();
-    // Note: is_hidden() is currently hiding paths that start with './', and should be fixed.
-    //for entry in walker.filter_entry(|e| !path_utils::is_hidden(e)) {
-    for entry in walker {
-        match entry {
-            Ok(entry) => {
-                let path = PathBuf::from(entry.path());
-
-                // If the file extension matches our set, queue full path for processing.
-                let has_matching_ext = path.extension().map_or(false, |ext| extensions.contains(ext));
-                if has_matching_ext {
-
-                    // Check for regex filename exclusion.
-                    if !path_utils::filename_matches_regex(&exclude_regex, &path) {
-
-                        //println!("Found file {}", &path_buf.display());
-                        input_queue.insert(path);
-                    }
-                }
-            },
-            Err(what) => {
-                println!("Error reading file: {}", what.description());
-            },
-        }
-    }
-
-
+    // Collect all the files to scan in a HashSet
+    // Note: is_hidden() is currently hiding paths that start with './', so don't use it yet.
+    let input_queue = WalkDir::new(root_dir).into_iter()
+        //.filter_entry(|e| !path_utils::is_hidden(e))
+        .filter_map(|entry| entry.ok())                     // This discards errors.
+        .map(|entry| PathBuf::from(entry.path()))
+        .filter(|ref path| path.extension().map_or(false, |ext| extensions.contains(ext)))
+        .filter(|ref path| !path_utils::filename_matches_regex(&exclude_regex, &path))
+        .collect::<HashSet<_>>();
 
     // Graph of all the tracked files
     let mut graph = Graph::<FileNode, bool>::new();
@@ -314,15 +284,21 @@ quote - parse only \"user\" includes (\"\")\n")
 
                 // Convert relative includes to absolute includes
                 let user_includes: Vec<_> = includes.iter()
-                    .filter(|inc| !inc.is_system_include || expand_system_includes )
+                    .filter(|inc| !inc.is_system_include || expand_system_includes)
                     .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
                     .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
                     .collect();
 
                 for inc in user_includes {
                     // Get an existing NodeIndex from the graph, on create a new node.
-                    let src_node = FileNode{path: PathBuf::from(&parent_file), is_system: false};
-                    let dst_node = FileNode{path: PathBuf::from(&inc.path), is_system: false};
+                    let src_node = FileNode {
+                        path: PathBuf::from(&parent_file),
+                        is_system: false,
+                    };
+                    let dst_node = FileNode {
+                        path: PathBuf::from(&inc.path),
+                        is_system: false,
+                    };
 
                     // These functions should work, but currently create duplicate nodes.
                     let src_node_idx = indices.entry(src_node.clone())
@@ -332,7 +308,7 @@ quote - parse only \"user\" includes (\"\")\n")
                         .or_insert_with(|| graph.add_node(dst_node))
                         .clone();
 
-                    //println!("Adding edge {:?} -> {:?}", src_node_idx, dst_node_idx);
+                    // println!("Adding edge {:?} -> {:?}", src_node_idx, dst_node_idx);
                     graph.add_edge(src_node_idx, dst_node_idx, true);
                 }
 
@@ -345,8 +321,14 @@ quote - parse only \"user\" includes (\"\")\n")
                     for inc in system_includes {
 
                         // Get an existing NodeIndex from the graph, on create a new node.
-                        let src_node = FileNode{path: PathBuf::from(&parent_file), is_system: false};
-                        let dst_node = FileNode{path: PathBuf::from(&inc.path), is_system: true};
+                        let src_node = FileNode {
+                            path: PathBuf::from(&parent_file),
+                            is_system: false,
+                        };
+                        let dst_node = FileNode {
+                            path: PathBuf::from(&inc.path),
+                            is_system: true,
+                        };
 
                         // These functions should work, but currently create duplicate nodes.
                         let src_node_idx = indices.entry(src_node.clone())
@@ -356,7 +338,7 @@ quote - parse only \"user\" includes (\"\")\n")
                             .or_insert_with(|| graph.add_node(dst_node))
                             .clone();
 
-                        //println!("Adding edge {:?} -> {:?}", src_node_idx, dst_node_idx);
+                        // println!("Adding edge {:?} -> {:?}", src_node_idx, dst_node_idx);
                         graph.add_edge(src_node_idx, dst_node_idx, true);
                     }
 
