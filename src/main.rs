@@ -116,13 +116,10 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
     // cap.at(1) is an angle brace or double quote, to determine user or system include.
     // cap.at(2) is the include file name.
     for cap in RE.captures_iter(&text) {
-        let inc_symbol = cap.at(1).unwrap_or("<");
-        let is_system_include = inc_symbol == "<";
-        match cap.at(2) {
-            Some(include_name) => {
-                includes.push(Include::new_relative(include_name, is_system_include))
-            }
-            None => {}
+        let is_system_include = cap.at(1).map_or(false, |sym| sym == "<");
+
+        if let Some(include_name) = cap.at(2) {
+            includes.push(Include::new_relative(include_name, is_system_include));
         }
     }
 
@@ -283,11 +280,11 @@ fn main() {
             Ok(includes) => {
 
                 // Convert relative includes to absolute includes
-                let user_includes: Vec<_> = includes.iter()
+                let user_includes = includes.iter()
                     .filter(|inc| !inc.is_system_include || expand_system_includes)
                     .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
                     .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
-                    .collect();
+                    .collect::<Vec<_>>();
 
                 for inc in user_includes {
                     // Get an existing NodeIndex from the graph, on create a new node.
@@ -312,6 +309,7 @@ fn main() {
                     graph.add_edge(src_node_idx, dst_node_idx, true);
                 }
 
+                // We still add system includes to the graph, but skip the file lookup.
                 if !expand_system_includes {
                     let system_includes: Vec<_> = includes.iter()
                         .filter(|inc| inc.is_system_include && !expand_system_includes)
