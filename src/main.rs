@@ -132,6 +132,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
 // -----------------------------------------------------------------------------
 
 // TODO: implement the command line arguments from the original 'cinclude2dot' project.
+// Output from "cinclude2dot.pl --help":
 // --debug       Display various debug info
 // --exclude     Specify a regular expression of filenames to ignore
 //              For example, ignore your test harnesses.
