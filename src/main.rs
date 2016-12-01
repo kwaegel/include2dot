@@ -263,7 +263,10 @@ fn main() {
     // Note: is_hidden() is currently hiding paths that start with './', so don't use it yet.
     let input_queue = WalkDir::new(root_dir).into_iter()
         //.filter_entry(|e| !path_utils::is_hidden(e))
-        .filter_map(|entry| entry.ok())                     // This discards errors.
+        .filter_map(|entry| match entry {
+            Err(what) => {println!("Error reading directory: {}", what.description()); None},
+            Ok(val) => Some(val),
+        })
         .map(|entry| PathBuf::from(entry.path()))
         .filter(|ref path| path.extension().map_or(false, |ext| extensions.contains(ext)))
         .filter(|ref path| !path_utils::filename_matches_regex(&exclude_regex, &path))
