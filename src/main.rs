@@ -199,6 +199,8 @@ fn main() {
         .arg(Arg::with_name("include")
             .long("include")
             .help("Comma separated list of include search paths.")
+            .multiple(true)
+            .require_delimiter(true)
             .takes_value(true))
         .arg(Arg::with_name("paths")
             .long("paths")
@@ -225,14 +227,23 @@ fn main() {
     };
 
     if !root_dir.exists() {
-        println!("Unable to access directory: {}", root_dir.display());
+        panic!("Unable to access directory: {}", root_dir.display());
+    }
+    //println!("Scanning directory: {}", root_dir.display());
+
+    // Collect a list of include paths to search.
+    let mut search_paths = Vec::new();
+    if let Some(values) = args.values_of("include") {
+        for string in values {
+            //println!("Using include: {}", &string);
+            search_paths.push(PathBuf::from(string));
+        }
     }
 
-    // Create a list of default system include paths.
-    let mut search_paths = Vec::new();
-    if expand_system_includes {
-        search_paths.push(PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\include"));
-    }
+    // Add a list of default system include paths.
+//    if expand_system_includes {
+//        search_paths.push(PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\include"));
+//    }
 
     // Restrict the file extensions to search.
     let mut extensions = HashSet::new();
@@ -243,7 +254,6 @@ fn main() {
     extensions.insert(OsStr::new("h"));
     extensions.insert(OsStr::new("hpp"));
     extensions.insert(OsStr::new("hxx"));
-
 
 
     // Regular expression of files to exclude. Skip if exclude string is empty.
