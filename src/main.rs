@@ -89,9 +89,9 @@ fn find_absolute_include_path(include: &Include,
 
     match path_utils::convert_to_absolute_path(&normalized_path, local_dir, system_search_paths) {
         None => {
-            println!("In file {:?}", parent_file);
-            println!("Unable to locate include {:?}", &include.path);
-            println!("");
+
+            println!("Unable to locate {:?}", &include.path);
+            println!("Included from file {:?}\n", parent_file);
             include.as_failed_lookup()
         }
         Some(path_buf) => include.as_absolute(path_buf.as_path()),
