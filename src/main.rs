@@ -361,5 +361,8 @@ fn main() {
     // Write the graph to a dot file.
     let _ = dot_writer::write_dot_with_header("./graph.dot", &graph);
 
+    // Print summary stats
+    println!("Generated graph with {} nodes and {} edges.", graph.node_count(), graph.edge_count());
+
     println!("Now run \"dot -Tpdf graph.dot > graph.pdf\" to render the graph.");
 }
