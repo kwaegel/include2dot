@@ -198,9 +198,8 @@ fn main() {
             .takes_value(true))
         .arg(Arg::with_name("include")
             .long("include")
-            .help("Comma separated list of include search paths.")
+            .help("Space separated list of include search paths. (e.g. ./*/include)")
             .multiple(true)
-            .require_delimiter(true)
             .takes_value(true))
         .arg(Arg::with_name("paths")
             .long("paths")
@@ -215,8 +214,10 @@ fn main() {
             .default_value("both")
             .takes_value(true))
         .arg(Arg::with_name("src")
+            .long("src")
             .help("Path to the source code, defaults to current directory.")
-            .multiple(false))
+            .multiple(false)
+            .takes_value(true))
         .get_matches();
 
     let expand_system_includes = false;
@@ -235,7 +236,7 @@ fn main() {
     let mut search_paths = Vec::new();
     if let Some(values) = args.values_of("include") {
         for string in values {
-            //println!("Using include: {}", &string);
+            println!("Using include: {}", &string);
             search_paths.push(PathBuf::from(string));
         }
     }
