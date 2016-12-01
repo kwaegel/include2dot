@@ -8,6 +8,7 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
 use std::error::Error;
+use std::env;
 
 use std::collections::HashSet;
 use std::collections::HashMap;
@@ -213,20 +214,15 @@ fn main() {
             .takes_value(true))
         .arg(Arg::with_name("src")
             .help("Path to the source code, defaults to current directory.")
-            .required(true)
-            .multiple(false)
-            .index(1))
+            .multiple(false))
         .get_matches();
 
     let expand_system_includes = false;
 
-    let root_dir_string = match args.value_of("src") {
-        Some(path) => path,
-        None => panic!("Unable to parse source directory argument."),
+    let root_dir = match args.value_of("src") {
+        Some(path) => PathBuf::from(path),
+        None => env::current_dir().unwrap()
     };
-
-    println!("Scanning path: {}", root_dir_string);
-    let root_dir = Path::new(root_dir_string);
 
     if !root_dir.exists() {
         println!("Unable to access directory: {}", root_dir.display());
