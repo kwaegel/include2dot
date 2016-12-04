@@ -11,11 +11,8 @@ use std::error::Error;
 use std::env;
 
 use std::collections::HashSet;
-use std::collections::HashMap;
 
 extern crate petgraph;
-use petgraph::Graph;
-use petgraph::prelude::NodeIndex;
 
 extern crate walkdir;
 use walkdir::WalkDir;
@@ -32,6 +29,9 @@ mod dot_writer;
 
 mod file_node;
 use file_node::FileNode;
+
+mod hash_graph;
+use hash_graph::HashGraph;
 
 // -----------------------------------------------------------------------------
 
@@ -206,14 +206,15 @@ fn main() {
 //            .long("paths")
 //            .help("Leaves relative paths in displayed filenames.")
 //            .takes_value(true))
-//        .arg(Arg::with_name("quotetypes")
-//            .long("quotetypes")
-//            .help("Select which type of includes to parse:\nboth - the default, parse all \
-//                   includes. \nangle - parse only \"system\" includes (<>) \nquote - parse only \
-//                   \"user\" includes (\"\")\n")
-//            .possible_values(&QuoteTypes::variants())
-//            .default_value("both")
-//            .takes_value(true))
+        .arg(Arg::with_name("quotetypes")
+            .long("quotetypes")
+            .help("Select which type of includes to parse:\nboth - the default, parse all \
+                   includes. \nangle - parse only \"system\" includes (<>) \nquote - parse only \
+                   \"user\" includes (\"\")\n")
+            .possible_values(&QuoteTypes::variants())
+            .default_value("both")
+            .multiple(false)
+            .takes_value(true))
         .arg(Arg::with_name("src")
             .long("src")
             .help("Path to the source code, defaults to current directory.")
@@ -241,6 +242,14 @@ fn main() {
             search_paths.push(PathBuf::from(string));
         }
     }
+
+    // Collect the type of includes to scan (<> vs "")
+    let quote_types = args.value_of("quotetypes").unwrap_or("both");
+    let (parse_user_includes, parse_system_includes) = match quote_types {
+        "angle" => (false, true),
+        "quote" => (true, false),
+        _ => (true, true), // both
+    };
 
     // Add a list of default system include paths.
 //    if expand_system_includes {
@@ -281,8 +290,7 @@ fn main() {
         .collect::<HashSet<_>>();
 
     // Graph of all the tracked files
-    let mut graph = Graph::<FileNode, bool>::new();
-    let mut indices = HashMap::<FileNode, NodeIndex>::new();
+    let mut hash_graph = HashGraph::<FileNode>::new();
 
     for path_buf in input_queue {
         let parent_file = path_buf.as_path();
@@ -292,7 +300,7 @@ fn main() {
 
                 // Convert relative includes to absolute includes
                 let user_includes = includes.iter()
-                    .filter(|inc| !inc.is_system_include || expand_system_includes)
+                    .filter(|inc| !inc.is_system_include && parse_user_includes)
                     .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
                     .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
                     .collect::<Vec<_>>();
@@ -308,22 +316,13 @@ fn main() {
                         is_system: false,
                     };
 
-                    // These functions should work, but currently create duplicate nodes.
-                    let src_node_idx = indices.entry(src_node.clone())
-                        .or_insert_with(|| graph.add_node(src_node))
-                        .clone();
-                    let dst_node_idx = indices.entry(dst_node.clone())
-                        .or_insert_with(|| graph.add_node(dst_node))
-                        .clone();
-
-                    // println!("Adding edge {:?} -> {:?}", src_node_idx, dst_node_idx);
-                    graph.add_edge(src_node_idx, dst_node_idx, true);
+                    hash_graph.add_edge(src_node, dst_node);
                 }
 
                 // We still add system includes to the graph, but skip the file lookup.
-                if !expand_system_includes {
+                if parse_system_includes {
                     let system_includes: Vec<_> = includes.iter()
-                        .filter(|inc| inc.is_system_include && !expand_system_includes)
+                        .filter(|inc| inc.is_system_include && !expand_system_includes && parse_user_includes)
                         .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
                         .collect();
 
@@ -339,16 +338,7 @@ fn main() {
                             is_system: true,
                         };
 
-                        // These functions should work, but currently create duplicate nodes.
-                        let src_node_idx = indices.entry(src_node.clone())
-                            .or_insert_with(|| graph.add_node(src_node))
-                            .clone();
-                        let dst_node_idx = indices.entry(dst_node.clone())
-                            .or_insert_with(|| graph.add_node(dst_node))
-                            .clone();
-
-                        // println!("Adding edge {:?} -> {:?}", src_node_idx, dst_node_idx);
-                        graph.add_edge(src_node_idx, dst_node_idx, true);
+                        hash_graph.add_edge(src_node, dst_node);
                     }
 
                 }
@@ -360,10 +350,11 @@ fn main() {
     }
 
     // Write the graph to a dot file.
-    let _ = dot_writer::write_dot_with_header("./graph.dot", &graph);
+    let _ = dot_writer::write_dot_with_header("./graph.dot", &hash_graph.graph);
 
     // Print summary stats
-    println!("Generated graph with {} nodes and {} edges.", graph.node_count(), graph.edge_count());
+    println!("Generated graph with {} nodes and {} edges.",
+             &hash_graph.graph.node_count(), &hash_graph.graph.edge_count());
 
     println!("Now run \"dot -Tpdf graph.dot > graph.pdf\" to render the graph.");
 }
