@@ -111,7 +111,10 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
     // Use a regex to search for '#include ...' lines.
     // The second (...) capture group isolates just the text, not the "" or <> symbols.
     lazy_static! {
-        static ref RE: Regex = Regex::new(r##"#include ([<|"])(.*)[>|"]"##).unwrap();
+        // Notes:
+        // (?m:^[:blank:]*) => empty space at line start, multi-line mode, non-capturing group.
+        static ref RE: Regex =
+        Regex::new(r##"(?m:^[:blank:]*)#[:blank:]*include[:blank:]*([<"])(.*)[>"]"##).unwrap();
     }
 
     // cap.at(1) is an angle brace or double quote, to determine user or system include.
