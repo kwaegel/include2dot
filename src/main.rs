@@ -208,11 +208,11 @@ fn main() {
 //            .takes_value(true))
         .arg(Arg::with_name("quotetypes")
             .long("quotetypes")
-            .help("Select which type of includes to parse:\nboth - the default, parse all \
+            .help("Select which type of includes to parse:\nboth - parse all \
                    includes. \nangle - parse only \"system\" includes (<>) \nquote - parse only \
                    \"user\" includes (\"\")\n")
             .possible_values(&QuoteTypes::variants())
-            .default_value("both")
+            .default_value("quote")
             .multiple(false)
             .takes_value(true))
         .arg(Arg::with_name("src")
@@ -221,8 +221,6 @@ fn main() {
             .multiple(false)
             .takes_value(true))
         .get_matches();
-
-    let expand_system_includes = false;
 
     let root_dir = match args.value_of("src") {
         Some(path) => PathBuf::from(path),
@@ -243,6 +241,9 @@ fn main() {
         }
     }
 
+    // Add a list of default system include paths.
+    search_paths.push(PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\include"));
+
     // Collect the type of includes to scan (<> vs "")
     let quote_types = args.value_of("quotetypes").unwrap_or("both");
     let (parse_user_includes, parse_system_includes) = match quote_types {
@@ -250,11 +251,6 @@ fn main() {
         "quote" => (true, false),
         _ => (true, true), // both
     };
-
-    // Add a list of default system include paths.
-//    if expand_system_includes {
-//        search_paths.push(PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\include"));
-//    }
 
     // Restrict the file extensions to search.
     let mut extensions = HashSet::new();
@@ -300,7 +296,8 @@ fn main() {
 
                 // Convert relative includes to absolute includes
                 let user_includes = includes.iter()
-                    .filter(|inc| !inc.is_system_include && parse_user_includes)
+                    .filter(|inc| (!inc.is_system_include && parse_user_includes)
+                                    || (inc.is_system_include && parse_system_includes))
                     .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
                     .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
                     .collect::<Vec<_>>();
@@ -313,34 +310,10 @@ fn main() {
                     };
                     let dst_node = FileNode {
                         path: PathBuf::from(&inc.path),
-                        is_system: false,
+                        is_system: inc.is_system_include,
                     };
 
                     hash_graph.add_edge(src_node, dst_node);
-                }
-
-                // We still add system includes to the graph, but skip the file lookup.
-                if parse_system_includes {
-                    let system_includes: Vec<_> = includes.iter()
-                        .filter(|inc| inc.is_system_include && !expand_system_includes && parse_user_includes)
-                        .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
-                        .collect();
-
-                    for inc in system_includes {
-
-                        // Get an existing NodeIndex from the graph, on create a new node.
-                        let src_node = FileNode {
-                            path: PathBuf::from(&parent_file),
-                            is_system: false,
-                        };
-                        let dst_node = FileNode {
-                            path: PathBuf::from(&inc.path),
-                            is_system: true,
-                        };
-
-                        hash_graph.add_edge(src_node, dst_node);
-                    }
-
                 }
             }
             Err(err) => {

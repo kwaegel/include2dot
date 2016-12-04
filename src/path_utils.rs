@@ -47,9 +47,9 @@ pub fn convert_to_absolute_path(relative_path: &Path,
     if full_path.exists() {
         return Some(full_path);
     }
-    //    else {
-    //        println!("Unable to locate {:?}", full_path);
-    //    }
+//    else {
+//        println!("Unable to locate {:?}", full_path);
+//    }
 
     // Then search system include paths
     for search_prefix in system_search_paths {
@@ -57,9 +57,9 @@ pub fn convert_to_absolute_path(relative_path: &Path,
         if full_path.exists() {
             return Some(full_path);
         }
-        //        else {
-        //            println!("Unable to locate {:?}", full_path);
-        //        }
+//        else {
+//            println!("Unable to locate {:?}", full_path);
+//        }
     }
     return None;
 }
