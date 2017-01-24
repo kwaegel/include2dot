@@ -4,11 +4,11 @@ version = "0.1.0"
 authors = ["Ky Waegel <kwaegel@users.noreply.github.com>"]
 
 [dependencies]
-regex = "0.1"
-lazy_static = "0.2"
-petgraph = "0.4"
-walkdir = "0.1"
+regex = "0.*"
+lazy_static = "0.*"
+petgraph = "0.*"
+walkdir = "1.*"
 
 [dependencies.clap]
-version = "2"
+version = "2.*"
 default-features = false

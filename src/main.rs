@@ -112,18 +112,18 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
     // The second (...) capture group isolates just the text, not the "" or <> symbols.
     lazy_static! {
         // Notes:
-        // (?m:^[:blank:]*) => empty space at line start, multi-line mode, non-capturing group.
+        // (?m:^[[:blank:]]*) => empty space at line start, multi-line mode, non-capturing group.
         static ref RE: Regex =
-        Regex::new(r##"(?m:^[:blank:]*)#[:blank:]*include[:blank:]*([<"])(.*)[>"]"##).unwrap();
+        Regex::new(r##"(?m:^[[:blank:]]*)#[[:blank:]]*include[[:blank:]]*([<"])(.*)[>"]"##).unwrap();
     }
 
     // cap.at(1) is an angle brace or double quote, to determine user or system include.
     // cap.at(2) is the include file name.
-    for cap in RE.captures_iter(&text) {
-        let is_system_include = cap.at(1).map_or(false, |sym| sym == "<");
+    for cap in RE.captures(&text) {
+        let is_system_include = cap.get(1).map_or(false, |sym| sym.as_str() == "<");
 
-        if let Some(include_name) = cap.at(2) {
-            includes.push(Include::new_relative(include_name, is_system_include));
+        if let Some(include_name) = cap.get(2) {
+            includes.push(Include::new_relative(include_name.as_str(), is_system_include));
         }
     }
 
