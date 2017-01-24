@@ -36,7 +36,7 @@ pub fn write_dot_with_header(filename: &str,
     //     6 [label="\"vector\""]
     for node_idx in graph.node_indices() {
         let integer_idx = graph.to_index(node_idx);
-        let ref node_ref = graph[node_idx];
+        let node_ref = &graph[node_idx];
         // println!("    {} [label={}]", integer_idx, node_ref);
         writeln!(&mut dotfile, "    {} [label={}]", integer_idx, node_ref)?;
     }

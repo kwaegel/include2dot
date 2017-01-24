@@ -28,7 +28,7 @@ impl<T: Eq+PartialEq+Hash+Clone> HashGraph<T> {
     fn require_node(&mut self, node: T) -> NodeIndex {
         if self.indices.contains_key(&node) {
             // Should never panic after the contains_key() check.
-            *self.indices.get(&node).unwrap()
+            self.indices[&node]
         } else {
             let new_idx = self.graph.add_node(node.clone());
             self.indices.insert(node, new_idx);

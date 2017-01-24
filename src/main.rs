@@ -119,7 +119,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
 
     // cap.at(1) is an angle brace or double quote, to determine user or system include.
     // cap.at(2) is the include file name.
-    for cap in RE.captures(&text) {
+    if let Some(cap) = RE.captures(&text) {
         let is_system_include = cap.get(1).map_or(false, |sym| sym.as_str() == "<");
 
         if let Some(include_name) = cap.get(2) {
@@ -268,7 +268,7 @@ fn main() {
 
     // Regular expression of files to exclude. Skip if exclude string is empty.
     let exclude_regex = args.value_of("exclude")
-        .and_then(|ref regex_str| {
+        .and_then(|regex_str| {
             Regex::new(regex_str)
                 .map_err(|err| panic!("Unable to parse exclude regex: {}", err.description()))
                 .ok() // Converts successful result to Some(), discarding errors.
@@ -284,8 +284,8 @@ fn main() {
             Ok(val) => Some(val),
         })
         .map(|entry| PathBuf::from(entry.path()))
-        .filter(|ref path| path.extension().map_or(false, |ext| extensions.contains(ext)))
-        .filter(|ref path| !path_utils::filename_matches_regex(&exclude_regex, &path))
+        .filter(|path| path.extension().map_or(false, |ext| extensions.contains(ext)))
+        .filter(|path| !path_utils::filename_matches_regex(&exclude_regex, path))
         .collect::<HashSet<_>>();
 
     // Graph of all the tracked files

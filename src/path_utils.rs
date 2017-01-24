@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 pub fn is_hidden(entry: &DirEntry) -> bool {
     entry.file_name()
         .to_str()
-        .map(|s| s.starts_with("."))
+        .map(|s| s.starts_with('.'))
         .unwrap_or(false)
 }
 
@@ -27,7 +27,7 @@ pub fn normalize_path_separators(path: &Path) -> PathBuf {
     match path.to_str() {
         Some(string) => {
             let mut composite_path = PathBuf::new();
-            for seg in string.split("/") {
+            for seg in string.split('/') {
                 composite_path.push(seg);
             }
             composite_path
@@ -63,7 +63,7 @@ pub fn convert_to_absolute_path(relative_path: &Path,
 //            println!("Unable to locate {:?}", full_path);
 //        }
     }
-    return None;
+    None
 }
 
 // ----------------------------------------------------------------------------
@@ -76,9 +76,10 @@ pub fn convert_to_absolute_path(relative_path: &Path,
 pub fn filename_matches_regex(regex: &Option<Regex>, path: &Path) -> bool {
 
     let filename = path.file_name().map_or("", |name| name.to_str().unwrap_or(""));
-    let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
+    regex.as_ref().map_or(false, |rx| rx.is_match(filename))
+    //let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
     // println!("checking {:?}: {}", path, is_match);
-    is_match
+    //is_match
 }
 
 // ----------------------------------------------------------------------------
@@ -91,9 +92,10 @@ pub fn filename_matches_regex(regex: &Option<Regex>, path: &Path) -> bool {
 pub fn name_matches_regex(regex: &Option<Regex>, name: &Path) -> bool {
 
     let filename = name.to_str().unwrap_or("");
-    let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
+    regex.as_ref().map_or(false, |rx| rx.is_match(filename))
+    //let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
     // println!("checking {:?}: {}", name, is_match);
-    is_match
+    //is_match
 }
 
 // ----------------------------------------------------------------------------
