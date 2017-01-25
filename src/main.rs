@@ -33,55 +33,13 @@ use file_node::FileNode;
 mod hash_graph;
 use hash_graph::HashGraph;
 
-// -----------------------------------------------------------------------------
-
-#[derive(Debug)]
-enum IncludeStatus {
-    Relative, // e.g. <vector>
-    Absolute, // e.g. /usr/include/c++/4.8/vector
-    FailedLookup, // Failed to resolve an absolute file path.
-}
-
-#[derive(Debug)]
-struct Include {
-    path: PathBuf,
-    is_system_include: bool,
-    status: IncludeStatus,
-}
-
-impl Include {
-    fn new_relative(name: &str, is_sys: bool) -> Include {
-        Include {
-            path: PathBuf::from(name),
-            is_system_include: is_sys,
-            status: IncludeStatus::Relative,
-        }
-    }
-
-    fn as_absolute(&self, absolute_path: &Path) -> Include {
-        Include {
-            path: PathBuf::from(absolute_path),
-            is_system_include: self.is_system_include,
-            status: IncludeStatus::Absolute,
-        }
-    }
-
-    fn as_failed_lookup(&self) -> Include {
-        Include {
-            path: PathBuf::from(&self.path),
-            is_system_include: self.is_system_include,
-            status: IncludeStatus::FailedLookup,
-        }
-    }
-}
-
 // ----------------------------------------------------------------------------
 
 // Convert a relative include path (e.g. <Windows.h>) into an absolute path.
-fn find_absolute_include_path(include: &Include,
+fn find_absolute_include_path(include: &FileNode,
                               parent_file: &Path,
                               system_search_paths: &[PathBuf])
-                              -> Include {
+                              -> FileNode {
 
     let local_dir = parent_file.parent().unwrap(); // strip the file name
 
@@ -92,16 +50,16 @@ fn find_absolute_include_path(include: &Include,
 
             println!("Unable to locate {:?}", &include.path);
             println!("Included from file {:?}\n", parent_file);
-            include.as_failed_lookup()
+            include.clone()
         }
-        Some(path_buf) => include.as_absolute(path_buf.as_path()),
+        Some(path_buf) => FileNode::from_path(&path_buf, include.is_system),
     }
 }
 
 // -----------------------------------------------------------------------------
 
 // Return a list of #include statements found in the file
-fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
+fn scan_file_for_includes(file: &Path) -> Result<Vec<FileNode>, io::Error> {
     let mut f = File::open(file)?;
     let mut text = String::new();
     f.read_to_string(&mut text)?;
@@ -123,7 +81,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<Include>, io::Error> {
         let is_system_include = cap.get(1).map_or(false, |sym| sym.as_str() == "<");
 
         if let Some(include_name) = cap.get(2) {
-            includes.push(Include::new_relative(include_name.as_str(), is_system_include));
+            includes.push(FileNode::new(include_name.as_str(), is_system_include));
         }
     }
 
@@ -299,22 +257,16 @@ fn main() {
 
                 // Convert relative includes to absolute includes
                 let user_includes = includes.iter()
-                    .filter(|inc| (!inc.is_system_include && parse_user_includes)
-                                    || (inc.is_system_include && parse_system_includes))
+                    .filter(|inc| (!inc.is_system && parse_user_includes)
+                                    || (inc.is_system && parse_system_includes))
                     .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
                     .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
                     .collect::<Vec<_>>();
 
                 for inc in user_includes {
                     // Get an existing NodeIndex from the graph, on create a new node.
-                    let src_node = FileNode {
-                        path: PathBuf::from(&parent_file),
-                        is_system: false,
-                    };
-                    let dst_node = FileNode {
-                        path: PathBuf::from(&inc.path),
-                        is_system: inc.is_system_include,
-                    };
+                    let src_node = FileNode::from_path(&parent_file, false);
+                    let dst_node = FileNode::from_path(&inc.path,inc.is_system);
 
                     hash_graph.add_edge(src_node, dst_node);
                 }

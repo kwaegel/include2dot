@@ -1,12 +1,22 @@
 
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::ffi::OsStr;
 
 #[derive(Debug,Clone,PartialEq,Eq,Hash)]
 pub struct FileNode {
     pub path: PathBuf, // Can use is_absolute() and is_relative() to check status.
     pub is_system: bool,
+}
+
+impl FileNode {
+    pub fn new(name: &str, is_sys: bool) -> FileNode {
+        FileNode{ path: PathBuf::from(name), is_system: is_sys}
+    }
+
+    pub fn from_path(path: &Path, is_sys: bool) -> FileNode {
+        FileNode{ path: PathBuf::from(path), is_system: is_sys}
+    }
 }
 
 impl fmt::Display for FileNode {
