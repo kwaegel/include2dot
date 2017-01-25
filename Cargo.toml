@@ -8,6 +8,7 @@ regex = "0.*"
 lazy_static = "0.*"
 petgraph = "0.*"
 walkdir = "1.*"
+itertools = "0.*"
 
 [dependencies.clap]
 version = "2.*"

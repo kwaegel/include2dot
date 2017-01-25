@@ -33,6 +33,9 @@ use file_node::FileNode;
 mod hash_graph;
 use hash_graph::HashGraph;
 
+extern crate itertools;
+use itertools::Itertools;
+
 // ----------------------------------------------------------------------------
 
 // Convert a relative include path (e.g. <Windows.h>) into an absolute path.
@@ -256,20 +259,17 @@ fn main() {
             Ok(includes) => {
 
                 // Convert relative includes to absolute includes
-                let user_includes = includes.iter()
+                includes.iter()
                     .filter(|inc| (!inc.is_system && parse_user_includes)
                                     || (inc.is_system && parse_system_includes))
                     .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
                     .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
-                    .collect::<Vec<_>>();
-
-                for inc in user_includes {
-                    // Get an existing NodeIndex from the graph, on create a new node.
-                    let src_node = FileNode::from_path(&parent_file, false);
-                    let dst_node = FileNode::from_path(&inc.path,inc.is_system);
-
-                    hash_graph.add_edge(src_node, dst_node);
-                }
+                    .foreach(|inc| {
+                        // Add an edge to the graph
+                        let src_node = FileNode::from_path(parent_file, false);
+                        let dst_node = FileNode::from_path(&inc.path,inc.is_system);
+                        hash_graph.add_edge(src_node, dst_node);
+                    });
             }
             Err(err) => {
                 println!("Unable to process file {:?}: {}", parent_file, err);
