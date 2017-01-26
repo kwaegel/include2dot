@@ -6,7 +6,7 @@ use clap::{Arg, App};
 use std::io::{self, Read};
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::error::Error;
 use std::env;
 
@@ -134,6 +134,58 @@ arg_enum! {
     }
 }
 
+// Core include searching loop
+fn find_includes(root_dir: &Path,
+                 search_paths: &Vec<PathBuf>,
+                 extensions: &HashSet<OsString>,
+                 parse_user_includes: bool,
+                 parse_system_includes: bool,
+                 exclude_regex: &Option<Regex>) -> HashGraph<FileNode> {
+    // Collect all the files to scan in a HashSet
+    // Note: is_hidden() is currently hiding paths that start with './', so don't use it yet.
+    let input_queue = WalkDir::new(root_dir).into_iter()
+        //.filter_entry(|e| !path_utils::is_hidden(e))
+        .filter_map(|entry| match entry {
+            Err(what) => {println!("Error reading directory: {}", what.description()); None},
+            Ok(val) => Some(val),
+        })
+        .map(|entry| PathBuf::from(entry.path()))
+        .filter(|path| path.extension().map_or(false, |ext| extensions.contains(ext)))
+        .filter(|path| !path_utils::filename_matches_regex(&exclude_regex, path))
+        .collect::<HashSet<_>>();
+
+    // Graph of all the tracked files
+    let mut hash_graph = HashGraph::<FileNode>::new();
+
+    for path_buf in input_queue {
+        let parent_file = path_buf.as_path();
+        let includes_result = scan_file_for_includes(parent_file);
+        match includes_result {
+            Ok(includes) => {
+
+                // Convert relative includes to absolute includes
+                includes.iter()
+                    .filter(|inc| (!inc.is_system && parse_user_includes)
+                        || (inc.is_system && parse_system_includes))
+                    .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
+                    .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
+                    .foreach(|inc| {
+                        // Add an edge to the graph
+                        let src_node = FileNode::from_path(parent_file, false);
+                        let dst_node = FileNode::from_path(&inc.path,inc.is_system);
+                        hash_graph.add_edge(src_node, dst_node);
+                    });
+            }
+            Err(err) => {
+                println!("Unable to process file {:?}: {}", parent_file, err);
+            }
+        }
+    }
+
+    hash_graph
+}
+
+
 fn main() {
     // TODO: accept extra include paths.
     let args = App::new("IncludeGraph-rs")
@@ -218,13 +270,13 @@ fn main() {
 
     // Restrict the file extensions to search.
     let mut extensions = HashSet::new();
-    extensions.insert(OsStr::new("c"));
-    extensions.insert(OsStr::new("cc"));
-    extensions.insert(OsStr::new("cpp"));
-    extensions.insert(OsStr::new("cxx"));
-    extensions.insert(OsStr::new("h"));
-    extensions.insert(OsStr::new("hpp"));
-    extensions.insert(OsStr::new("hxx"));
+    extensions.insert(OsString::from("c"));
+    extensions.insert(OsString::from("cc"));
+    extensions.insert(OsString::from("cpp"));
+    extensions.insert(OsString::from("cxx"));
+    extensions.insert(OsString::from("h"));
+    extensions.insert(OsString::from("hpp"));
+    extensions.insert(OsString::from("hxx"));
 
 
     // Regular expression of files to exclude. Skip if exclude string is empty.
@@ -235,47 +287,13 @@ fn main() {
                 .ok() // Converts successful result to Some(), discarding errors.
         });
 
+    let hash_graph = find_includes(&root_dir,
+                                   &search_paths,
+                                   &extensions,
+                                   parse_user_includes,
+                                   parse_system_includes,
+                                   &exclude_regex);
 
-    // Collect all the files to scan in a HashSet
-    // Note: is_hidden() is currently hiding paths that start with './', so don't use it yet.
-    let input_queue = WalkDir::new(root_dir).into_iter()
-        //.filter_entry(|e| !path_utils::is_hidden(e))
-        .filter_map(|entry| match entry {
-            Err(what) => {println!("Error reading directory: {}", what.description()); None},
-            Ok(val) => Some(val),
-        })
-        .map(|entry| PathBuf::from(entry.path()))
-        .filter(|path| path.extension().map_or(false, |ext| extensions.contains(ext)))
-        .filter(|path| !path_utils::filename_matches_regex(&exclude_regex, path))
-        .collect::<HashSet<_>>();
-
-    // Graph of all the tracked files
-    let mut hash_graph = HashGraph::<FileNode>::new();
-
-    for path_buf in input_queue {
-        let parent_file = path_buf.as_path();
-        let includes_result = scan_file_for_includes(parent_file);
-        match includes_result {
-            Ok(includes) => {
-
-                // Convert relative includes to absolute includes
-                includes.iter()
-                    .filter(|inc| (!inc.is_system && parse_user_includes)
-                                    || (inc.is_system && parse_system_includes))
-                    .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
-                    .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
-                    .foreach(|inc| {
-                        // Add an edge to the graph
-                        let src_node = FileNode::from_path(parent_file, false);
-                        let dst_node = FileNode::from_path(&inc.path,inc.is_system);
-                        hash_graph.add_edge(src_node, dst_node);
-                    });
-            }
-            Err(err) => {
-                println!("Unable to process file {:?}: {}", parent_file, err);
-            }
-        };
-    }
 
     // Write the graph to a dot file.
     let _ = dot_writer::write_dot_with_header("./graph.dot", &hash_graph.graph);
