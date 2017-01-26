@@ -123,3 +123,52 @@ pub fn find_includes_in_tree(root_dir: &Path,
 
     hash_graph
 }
+
+
+mod test {
+
+    use super::*;
+
+    #[test]
+    fn parse_user_includes() {
+        let testdata_dir = env::current_dir().unwrap().join("example_tree");
+
+        let mut search_paths = Vec::new();
+        search_paths.push(PathBuf::from(&testdata_dir));
+
+        let mut extensions = HashSet::new();
+        extensions.insert(OsString::from("h"));
+        extensions.insert(OsString::from("cpp"));
+
+        let hash_graph = find_includes_in_tree(&testdata_dir,
+                                               &search_paths,
+                                               &extensions,
+                                               true,
+                                               false,
+                                               &None);
+
+        assert_eq!(hash_graph.graph.node_count(), 5);
+    }
+
+    #[test]
+    fn parse_all_includes() {
+        let testdata_dir = env::current_dir().unwrap().join("example_tree");
+
+        let mut search_paths = Vec::new();
+        search_paths.push(PathBuf::from(&testdata_dir));
+
+        let mut extensions = HashSet::new();
+        extensions.insert(OsString::from("h"));
+        extensions.insert(OsString::from("cpp"));
+
+        let hash_graph = find_includes_in_tree(&testdata_dir,
+                                               &search_paths,
+                                               &extensions,
+                                               true,
+                                               true,
+                                               &None);
+
+        assert_eq!(hash_graph.graph.node_count(), 10);
+    }
+
+}
