@@ -58,7 +58,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<FileNode>, io::Error> {
 
     // cap.at(1) is an angle brace or double quote, to determine user or system include.
     // cap.at(2) is the include file name.
-    if let Some(cap) = RE.captures(&text) {
+    for cap in RE.captures_iter(&text) {
         let is_system_include = cap.get(1).map_or(false, |sym| sym.as_str() == "<");
 
         if let Some(include_name) = cap.get(2) {
@@ -66,7 +66,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<FileNode>, io::Error> {
         }
     }
 
-    // println!("Found {} includes in {}", includes.len(), &file.display());
+    //println!("Found {} includes in {}", includes.len(), &file.display());
 
     Ok(includes)
 }
@@ -124,14 +124,14 @@ pub fn find_includes_in_tree(root_dir: &Path,
     hash_graph
 }
 
-
+#[cfg(test)]
 mod test {
 
     use super::*;
 
     #[test]
-    fn parse_user_includes() {
-        let testdata_dir = env::current_dir().unwrap().join("example_tree");
+    fn parse_simple() {
+        let testdata_dir = env::current_dir().unwrap().join("testdata").join("simple");
 
         let mut search_paths = Vec::new();
         search_paths.push(PathBuf::from(&testdata_dir));
@@ -147,12 +147,33 @@ mod test {
                                                false,
                                                &None);
 
-        assert_eq!(hash_graph.graph.node_count(), 5);
+        assert_eq!(hash_graph.graph.node_count(), 4);
+    }
+
+    #[test]
+    fn parse_user_includes() {
+        let testdata_dir = env::current_dir().unwrap().join("testdata").join("complex");
+
+        let mut search_paths = Vec::new();
+        search_paths.push(PathBuf::from(&testdata_dir));
+
+        let mut extensions = HashSet::new();
+        extensions.insert(OsString::from("h"));
+        extensions.insert(OsString::from("cpp"));
+
+        let hash_graph = find_includes_in_tree(&testdata_dir,
+                                               &search_paths,
+                                               &extensions,
+                                               true,
+                                               false,
+                                               &None);
+
+        assert_eq!(hash_graph.graph.node_count(), 7);
     }
 
     #[test]
     fn parse_all_includes() {
-        let testdata_dir = env::current_dir().unwrap().join("example_tree");
+        let testdata_dir = env::current_dir().unwrap().join("testdata").join("complex");
 
         let mut search_paths = Vec::new();
         search_paths.push(PathBuf::from(&testdata_dir));
@@ -168,7 +189,7 @@ mod test {
                                                true,
                                                &None);
 
-        assert_eq!(hash_graph.graph.node_count(), 10);
+        assert_eq!(hash_graph.graph.node_count(), 12);
     }
 
 }

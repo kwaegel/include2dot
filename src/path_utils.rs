@@ -105,7 +105,7 @@ fn test_relative_path() {
     let project_dir = env::current_dir().unwrap();
     println!("{:?}", project_dir);
 
-    let example_dir = project_dir.join("example_tree");
+    let example_dir = project_dir.join("testdata").join("complex");
     println!("{:?}", example_dir);
 
     // Check if file exists
