@@ -7,8 +7,11 @@ use std::path::PathBuf;
 use std::ffi::OsString;
 use std::error::Error;
 use std::env;
-
 use std::collections::HashSet;
+
+use std::process::Command;
+use std::fs::File;
+use std::io::Write;
 
 extern crate petgraph;
 extern crate walkdir;
@@ -187,5 +190,21 @@ fn main() {
     println!("Generated graph with {} nodes and {} edges.",
              &hash_graph.graph.node_count(), &hash_graph.graph.edge_count());
 
-    println!("Now run \"dot -Tpdf graph.dot > graph.pdf\" to render the graph.");
+    // Create a sub-process to generate a PDF of the graph
+    let graphviz_output_result = Command::new("dot")
+        .arg("-Tpdf")
+        .arg("graph.dot")
+        .output();
+
+    if let Ok(graphviz_output) = graphviz_output_result {
+        if graphviz_output.status.success() {
+            let mut pdf_file = File::create("graph.pdf").expect("Failed to create output PDF");
+            pdf_file.write_all(&graphviz_output.stdout).expect("Failed to write to graph.pdf");
+        }
+    } else {
+        println!("Unable to find graphviz. Is it installed?");
+        println!("Run \"dot -Tpdf graph.dot > graph.pdf\" to render the graph.");
+    }
+
+
 }
