@@ -75,7 +75,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<FileNode>, io::Error> {
 
 // Core include searching loop
 pub fn find_includes_in_tree(root_dir: &Path,
-                             search_paths: &Vec<PathBuf>,
+                             search_paths: &[PathBuf],
                              extensions: &HashSet<OsString>,
                              parse_user_includes: bool,
                              parse_system_includes: bool,
@@ -90,7 +90,7 @@ pub fn find_includes_in_tree(root_dir: &Path,
         })
         .map(|entry| PathBuf::from(entry.path()))
         .filter(|path| path.extension().map_or(false, |ext| extensions.contains(ext)))
-        .filter(|path| !path_utils::filename_matches_regex(&exclude_regex, path))
+        .filter(|path| !path_utils::filename_matches_regex(exclude_regex, path))
         .collect::<HashSet<_>>();
 
     // Graph of all the tracked files
@@ -106,8 +106,8 @@ pub fn find_includes_in_tree(root_dir: &Path,
                 includes.iter()
                     .filter(|inc| (!inc.is_system && parse_user_includes)
                         || (inc.is_system && parse_system_includes))
-                    .filter(|inc| !path_utils::name_matches_regex(&exclude_regex, &inc.path))
-                    .map(|inc| find_absolute_include_path(inc, parent_file, &search_paths))
+                    .filter(|inc| !path_utils::name_matches_regex(exclude_regex, &inc.path))
+                    .map(|inc| find_absolute_include_path(inc, parent_file, search_paths))
                     .foreach(|inc| {
                         // Add an edge to the graph
                         let src_node = FileNode::from_path(parent_file, false);
