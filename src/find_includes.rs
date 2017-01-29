@@ -50,8 +50,8 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<FileNode>, io::Error> {
     // Use a regex to search for '#include ...' lines.
     // The second (...) capture group isolates just the text, not the "" or <> symbols.
     lazy_static! {
-        // Notes:
-        // (?m:^[[:blank:]]*) => empty space at line start, multi-line mode, non-capturing group.
+    // Notes:
+    // (?m:^[[:blank:]]*) => empty space at line start, multi-line mode, non-capturing group.
         static ref RE: Regex =
         Regex::new(r##"(?m:^[[:blank:]]*)#[[:blank:]]*include[[:blank:]]*([<"])(.*)[>"]"##).unwrap();
     }
@@ -66,7 +66,7 @@ fn scan_file_for_includes(file: &Path) -> Result<Vec<FileNode>, io::Error> {
         }
     }
 
-    //println!("Found {} includes in {}", includes.len(), &file.display());
+    // println!("Found {} includes in {}", includes.len(), &file.display());
 
     Ok(includes)
 }
@@ -79,7 +79,8 @@ pub fn find_includes_in_tree(root_dir: &Path,
                              extensions: &HashSet<OsString>,
                              parse_user_includes: bool,
                              parse_system_includes: bool,
-                             exclude_regex: &Option<Regex>) -> HashGraph<FileNode> {
+                             exclude_regex: &Option<Regex>)
+                             -> HashGraph<FileNode> {
     // Collect all the files to scan in a HashSet
     // Note: is_hidden() is currently hiding paths that start with './', so don't use it yet.
     let input_queue = WalkDir::new(root_dir).into_iter()
@@ -104,14 +105,16 @@ pub fn find_includes_in_tree(root_dir: &Path,
 
                 // Convert relative includes to absolute includes
                 includes.iter()
-                    .filter(|inc| (!inc.is_system && parse_user_includes)
-                        || (inc.is_system && parse_system_includes))
+                    .filter(|inc| {
+                        (!inc.is_system && parse_user_includes) ||
+                        (inc.is_system && parse_system_includes)
+                    })
                     .filter(|inc| !path_utils::name_matches_regex(exclude_regex, &inc.path))
                     .map(|inc| find_absolute_include_path(inc, parent_file, search_paths))
                     .foreach(|inc| {
                         // Add an edge to the graph
                         let src_node = FileNode::from_path(parent_file, false);
-                        let dst_node = FileNode::from_path(&inc.path,inc.is_system);
+                        let dst_node = FileNode::from_path(&inc.path, inc.is_system);
                         hash_graph.add_edge(src_node, dst_node);
                     });
             }
@@ -184,12 +187,8 @@ mod test {
         extensions.insert(OsString::from("h"));
         extensions.insert(OsString::from("cpp"));
 
-        let hash_graph = find_includes_in_tree(&testdata_dir,
-                                               &search_paths,
-                                               &extensions,
-                                               true,
-                                               true,
-                                               &None);
+        let hash_graph =
+            find_includes_in_tree(&testdata_dir, &search_paths, &extensions, true, true, &None);
 
         assert_eq!(hash_graph.graph.node_count(), 12);
     }
@@ -205,28 +204,25 @@ mod test {
         extensions.insert(OsString::from("h"));
         extensions.insert(OsString::from("cpp"));
 
-        let graph = find_includes_in_tree(&testdata_dir,
-                                               &search_paths,
-                                               &extensions,
-                                               true,
-                                               true,
-                                               &None);
+        let graph =
+            find_includes_in_tree(&testdata_dir, &search_paths, &extensions, true, true, &None);
 
-        let idx_list = graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp" );
+        let idx_list = graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp");
         assert_eq!(idx_list.len(), 1);
 
         let root_idx = idx_list[0];
-        assert_eq!(graph.graph[root_idx].path.file_name().unwrap(), "test_1.cpp");
+        assert_eq!(graph.graph[root_idx].path.file_name().unwrap(),
+                   "test_1.cpp");
 
         let subgraph = graph.filter_included_by(root_idx);
         assert_eq!(subgraph.graph.node_count(), 5);
 
         // Verify the nodes are correct
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "set").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "map").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "inc_1.h").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "vector").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "set").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "map").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "inc_1.h").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "vector").len() == 1);
     }
 
     #[test]
@@ -240,14 +236,10 @@ mod test {
         extensions.insert(OsString::from("h"));
         extensions.insert(OsString::from("cpp"));
 
-        let graph = find_includes_in_tree(&testdata_dir,
-                                          &search_paths,
-                                          &extensions,
-                                          true,
-                                          true,
-                                          &None);
+        let graph =
+            find_includes_in_tree(&testdata_dir, &search_paths, &extensions, true, true, &None);
 
-        let idx_list = graph.find(|n| n.path.file_name().unwrap() == "inc_1.h" );
+        let idx_list = graph.find(|n| n.path.file_name().unwrap() == "inc_1.h");
         assert_eq!(idx_list.len(), 1);
 
         let root_idx = idx_list[0];
@@ -257,10 +249,10 @@ mod test {
         assert_eq!(subgraph.graph.node_count(), 4);
 
         // Verify the nodes are correct
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "inc_1.h").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "b.cpp").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "a.cpp").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "inc_1.h").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "b.cpp").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "a.cpp").len() == 1);
     }
 
     #[test]
@@ -274,14 +266,10 @@ mod test {
         extensions.insert(OsString::from("h"));
         extensions.insert(OsString::from("cpp"));
 
-        let graph = find_includes_in_tree(&testdata_dir,
-                                          &search_paths,
-                                          &extensions,
-                                          true,
-                                          true,
-                                          &None);
+        let graph =
+            find_includes_in_tree(&testdata_dir, &search_paths, &extensions, true, true, &None);
 
-        let idx_list = graph.find(|n| n.path.file_name().unwrap() == "inc_1.h" );
+        let idx_list = graph.find(|n| n.path.file_name().unwrap() == "inc_1.h");
         assert_eq!(idx_list.len(), 1);
 
         let root_idx = idx_list[0];
@@ -291,10 +279,10 @@ mod test {
         assert_eq!(subgraph.graph.node_count(), 5);
 
         // Verify the nodes are correct
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "inc_1.h").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "b.cpp").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "a.cpp").len() == 1 );
-        assert!(graph.find(|n| n.path.file_name().unwrap() == "vector").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "inc_1.h").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "b.cpp").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "a.cpp").len() == 1);
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "vector").len() == 1);
     }
 }

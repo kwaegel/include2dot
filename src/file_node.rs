@@ -11,11 +11,17 @@ pub struct FileNode {
 
 impl FileNode {
     pub fn new(name: &str, is_sys: bool) -> FileNode {
-        FileNode{ path: PathBuf::from(name), is_system: is_sys}
+        FileNode {
+            path: PathBuf::from(name),
+            is_system: is_sys,
+        }
     }
 
     pub fn from_path(path: &Path, is_sys: bool) -> FileNode {
-        FileNode{ path: PathBuf::from(path), is_system: is_sys}
+        FileNode {
+            path: PathBuf::from(path),
+            is_system: is_sys,
+        }
     }
 }
 

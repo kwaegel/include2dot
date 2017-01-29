@@ -49,9 +49,9 @@ pub fn convert_to_absolute_path(relative_path: &Path,
     if full_path.exists() {
         return Some(full_path);
     }
-//    else {
-//        println!("Unable to locate {:?}", full_path);
-//    }
+    //    else {
+    //        println!("Unable to locate {:?}", full_path);
+    //    }
 
     // Then search system include paths
     for search_prefix in system_search_paths {
@@ -59,9 +59,9 @@ pub fn convert_to_absolute_path(relative_path: &Path,
         if full_path.exists() {
             return Some(full_path);
         }
-//        else {
-//            println!("Unable to locate {:?}", full_path);
-//        }
+        //        else {
+        //            println!("Unable to locate {:?}", full_path);
+        //        }
     }
     None
 }
@@ -77,9 +77,9 @@ pub fn filename_matches_regex(regex: &Option<Regex>, path: &Path) -> bool {
 
     let filename = path.file_name().map_or("", |name| name.to_str().unwrap_or(""));
     regex.as_ref().map_or(false, |rx| rx.is_match(filename))
-    //let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
+    // let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
     // println!("checking {:?}: {}", path, is_match);
-    //is_match
+    // is_match
 }
 
 // ----------------------------------------------------------------------------
@@ -93,9 +93,9 @@ pub fn name_matches_regex(regex: &Option<Regex>, name: &Path) -> bool {
 
     let filename = name.to_str().unwrap_or("");
     regex.as_ref().map_or(false, |rx| rx.is_match(filename))
-    //let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
+    // let is_match = regex.as_ref().map_or(false, |ref rx| rx.is_match(filename));
     // println!("checking {:?}: {}", name, is_match);
-    //is_match
+    // is_match
 }
 
 // ----------------------------------------------------------------------------
@@ -116,9 +116,4 @@ fn test_relative_path() {
     let file_b = example_dir.join("subdir").join("..").join("inc_1.h");
     println!("{:?}", file_b);
     assert!(file_b.exists());
-
-//    // This fails for some reason. Unable to parse the relative path after calling canonicalize()?
-//    let file_b = example_dir.canonicalize().unwrap().join("subdir").join("..").join("inc_1.h");
-//    println!("{:?}", file_b);
-//    assert!(file_b.exists());
 }

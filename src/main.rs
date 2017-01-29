@@ -133,13 +133,13 @@ fn main() {
 
     let root_dir = match args.value_of("src") {
         Some(path) => PathBuf::from(path),
-        None => env::current_dir().unwrap()
+        None => env::current_dir().unwrap(),
     };
 
     if !root_dir.exists() {
         panic!("Unable to access directory: {}", root_dir.display());
     }
-    //println!("Scanning directory: {}", root_dir.display());
+    // println!("Scanning directory: {}", root_dir.display());
 
     // Collect a list of include paths to search.
     let mut search_paths = Vec::new();
@@ -188,21 +188,21 @@ fn main() {
                                                &exclude_regex);
 
     // Filter the output if requested
-    if let Some(filter_name) = args.value_of("filter")
-    {
+    if let Some(filter_name) = args.value_of("filter") {
         // Find files with the target name. For now, just use the first one.
-        let idx_list = hash_graph.find(|n| n.path.file_name().unwrap() == filter_name );
+        let idx_list = hash_graph.find(|n| n.path.file_name().unwrap() == filter_name);
         let root_idx = idx_list[0];
 
         hash_graph = hash_graph.filter_bidirectional(root_idx);
     }
-    
+
     // Write the graph to a dot file.
     let _ = dot_writer::write_dot_with_header("./graph.dot", &hash_graph.graph);
 
     // Print summary stats
     println!("Generated graph with {} nodes and {} edges.",
-             &hash_graph.graph.node_count(), &hash_graph.graph.edge_count());
+             &hash_graph.graph.node_count(),
+             &hash_graph.graph.edge_count());
 
     // Create a sub-process to generate a PDF of the graph
     let graphviz_output_result = Command::new("dot")
@@ -214,8 +214,8 @@ fn main() {
         if graphviz_output.status.success() {
             if let Err(err) = File::create("graph.pdf")
                 .map(|mut pdf_file| pdf_file.write_all(&graphviz_output.stdout)) {
-                    println!("Error writing PDF: {}", err);
-                }
+                println!("Error writing PDF: {}", err);
+            }
         }
     } else {
         println!("Unable to find graphviz. Is it installed?");

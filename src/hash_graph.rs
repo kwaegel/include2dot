@@ -8,16 +8,17 @@ use petgraph::Graph;
 use petgraph::prelude::NodeIndex;
 
 #[derive(Debug)]
-pub struct HashGraph<T: Eq+PartialEq+Hash+Clone> {
+pub struct HashGraph<T: Eq + PartialEq + Hash + Clone> {
     pub graph: Graph<T, bool>,
     indices: HashMap<T, NodeIndex>,
 }
 
-impl<T: Eq+PartialEq+Hash+Clone+Display> HashGraph<T> {
-
+impl<T: Eq + PartialEq + Hash + Clone + Display> HashGraph<T> {
     pub fn new() -> HashGraph<T> {
-        HashGraph::<T>{graph: Graph::<T, bool>::new(),
-            indices: HashMap::<T, NodeIndex>::new()}
+        HashGraph::<T> {
+            graph: Graph::<T, bool>::new(),
+            indices: HashMap::<T, NodeIndex>::new(),
+        }
     }
 
     // Return a sub-graph of all files included by the target node.
@@ -111,11 +112,13 @@ impl<T: Eq+PartialEq+Hash+Clone+Display> HashGraph<T> {
 
     // Return a list of all node indices satisfying a predicate.
     pub fn find<F>(&self, pred: F) -> Vec<NodeIndex>
-        where F: Fn(&T) -> bool {
+        where F: Fn(&T) -> bool
+    {
 
-        self.indices.iter()
-            .filter(|&(node,_)| pred(node))
-            .map(|(_,index)| *index)
+        self.indices
+            .iter()
+            .filter(|&(node, _)| pred(node))
+            .map(|(_, index)| *index)
             .collect::<Vec<_>>()
     }
 
@@ -142,7 +145,7 @@ impl<T: Eq+PartialEq+Hash+Clone+Display> HashGraph<T> {
 
         // I would prefer this syntax, but borrow of &self prevents it.
         // May require using a Cell<> around the graph or HashMap.
-//        *self.indices.entry(node.clone())
-//            .or_insert_with(|| self.graph.add_node(node))
+        //        *self.indices.entry(node.clone())
+        //            .or_insert_with(|| self.graph.add_node(node))
     }
 }
