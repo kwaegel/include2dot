@@ -198,8 +198,10 @@ fn main() {
 
     if let Ok(graphviz_output) = graphviz_output_result {
         if graphviz_output.status.success() {
-            let mut pdf_file = File::create("graph.pdf").expect("Failed to create output PDF");
-            pdf_file.write_all(&graphviz_output.stdout).expect("Failed to write to graph.pdf");
+            if let Err(err) = File::create("graph.pdf")
+                .map(|mut pdf_file| pdf_file.write_all(&graphviz_output.stdout)) {
+                    println!("Error writing PDF: {}", err);
+                }
         }
     } else {
         println!("Unable to find graphviz. Is it installed?");
