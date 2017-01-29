@@ -124,6 +124,8 @@ pub fn find_includes_in_tree(root_dir: &Path,
     hash_graph
 }
 
+// -----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod test {
 
@@ -192,4 +194,107 @@ mod test {
         assert_eq!(hash_graph.graph.node_count(), 12);
     }
 
+    #[test]
+    fn filter_included_by_subgraph() {
+        let testdata_dir = env::current_dir().unwrap().join("testdata").join("complex");
+
+        let mut search_paths = Vec::new();
+        search_paths.push(PathBuf::from(&testdata_dir));
+
+        let mut extensions = HashSet::new();
+        extensions.insert(OsString::from("h"));
+        extensions.insert(OsString::from("cpp"));
+
+        let graph = find_includes_in_tree(&testdata_dir,
+                                               &search_paths,
+                                               &extensions,
+                                               true,
+                                               true,
+                                               &None);
+
+        let idx_list = graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp" );
+        assert_eq!(idx_list.len(), 1);
+
+        let root_idx = idx_list[0];
+        assert_eq!(graph.graph[root_idx].path.file_name().unwrap(), "test_1.cpp");
+
+        let subgraph = graph.filter_included_by(root_idx);
+        assert_eq!(subgraph.graph.node_count(), 5);
+
+        // Verify the nodes are correct
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "set").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "map").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "inc_1.h").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "vector").len() == 1 );
+    }
+
+    #[test]
+    fn filter_that_includes_subgraph() {
+        let testdata_dir = env::current_dir().unwrap().join("testdata").join("complex");
+
+        let mut search_paths = Vec::new();
+        search_paths.push(PathBuf::from(&testdata_dir));
+
+        let mut extensions = HashSet::new();
+        extensions.insert(OsString::from("h"));
+        extensions.insert(OsString::from("cpp"));
+
+        let graph = find_includes_in_tree(&testdata_dir,
+                                          &search_paths,
+                                          &extensions,
+                                          true,
+                                          true,
+                                          &None);
+
+        let idx_list = graph.find(|n| n.path.file_name().unwrap() == "inc_1.h" );
+        assert_eq!(idx_list.len(), 1);
+
+        let root_idx = idx_list[0];
+        assert_eq!(graph.graph[root_idx].path.file_name().unwrap(), "inc_1.h");
+
+        let subgraph = graph.filter_that_includes(root_idx);
+        assert_eq!(subgraph.graph.node_count(), 4);
+
+        // Verify the nodes are correct
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "inc_1.h").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "b.cpp").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "a.cpp").len() == 1 );
+    }
+
+    #[test]
+    fn filter_related_to_subgraph() {
+        let testdata_dir = env::current_dir().unwrap().join("testdata").join("complex");
+
+        let mut search_paths = Vec::new();
+        search_paths.push(PathBuf::from(&testdata_dir));
+
+        let mut extensions = HashSet::new();
+        extensions.insert(OsString::from("h"));
+        extensions.insert(OsString::from("cpp"));
+
+        let graph = find_includes_in_tree(&testdata_dir,
+                                          &search_paths,
+                                          &extensions,
+                                          true,
+                                          true,
+                                          &None);
+
+        let idx_list = graph.find(|n| n.path.file_name().unwrap() == "inc_1.h" );
+        assert_eq!(idx_list.len(), 1);
+
+        let root_idx = idx_list[0];
+        assert_eq!(graph.graph[root_idx].path.file_name().unwrap(), "inc_1.h");
+
+        let subgraph = graph.filter_bidirectional(root_idx);
+        assert_eq!(subgraph.graph.node_count(), 5);
+
+        // Verify the nodes are correct
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "inc_1.h").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "test_1.cpp").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "b.cpp").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "a.cpp").len() == 1 );
+        assert!(graph.find(|n| n.path.file_name().unwrap() == "vector").len() == 1 );
+    }
 }

@@ -120,6 +120,10 @@ fn main() {
             .default_value("quote")
             .multiple(false)
             .takes_value(true))
+        .arg(Arg::with_name("filter")
+            .long("filter")
+            .help("Specify a filename to filter by. Will only list files above or below in the tree.")
+            .takes_value(true))
         .arg(Arg::with_name("src")
             .long("src")
             .help("Path to the source code, defaults to current directory.")
@@ -176,12 +180,22 @@ fn main() {
                 .ok() // Converts successful result to Some(), discarding errors.
         });
 
-    let hash_graph = find_includes_in_tree(&root_dir,
-                                           &search_paths,
-                                           &extensions,
-                                           parse_user_includes,
-                                           parse_system_includes,
-                                           &exclude_regex);
+    let mut hash_graph = find_includes_in_tree(&root_dir,
+                                               &search_paths,
+                                               &extensions,
+                                               parse_user_includes,
+                                               parse_system_includes,
+                                               &exclude_regex);
+
+    // Filter the output if requested
+    if let Some(filter_name) = args.value_of("filter")
+    {
+        // Find files with the target name. For now, just use the first one.
+        let idx_list = hash_graph.find(|n| n.path.file_name().unwrap() == filter_name );
+        let root_idx = idx_list[0];
+
+        hash_graph = hash_graph.filter_bidirectional(root_idx);
+    }
     
     // Write the graph to a dot file.
     let _ = dot_writer::write_dot_with_header("./graph.dot", &hash_graph.graph);
