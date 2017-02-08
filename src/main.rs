@@ -104,7 +104,8 @@ fn main() {
 //            .takes_value(true))
         .arg(Arg::with_name("include")
             .long("include")
-            .help("Space separated list of include search paths. (e.g. ./*/include)")
+            .help("Space separated list of include search paths. (e.g. --include= ./*/include) \
+                    \tInclude a space after the equals sign for glob expansion")
             .multiple(true)
             .takes_value(true))
 //        .arg(Arg::with_name("paths")
@@ -137,7 +138,8 @@ fn main() {
     };
 
     if !root_dir.exists() {
-        panic!("Unable to access directory: {}", root_dir.display());
+        println!("Unable to access src directory: {}", root_dir.display());
+        std::process::exit(1);
     }
     // println!("Scanning directory: {}", root_dir.display());
 
