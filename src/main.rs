@@ -145,8 +145,14 @@ fn main() {
     let mut search_paths = Vec::new();
     if let Some(values) = args.values_of("include") {
         for string in values {
-            println!("Using include: {}", &string);
-            search_paths.push(PathBuf::from(string));
+
+            if let Ok(absolute_path) = std::fs::canonicalize(PathBuf::from(string)) {
+                println!("Using search path: {}", absolute_path.display());
+                search_paths.push(absolute_path);
+            } else {
+                println!("Unable to find absolute include path from: {}", &string);
+            }
+
         }
     }
 

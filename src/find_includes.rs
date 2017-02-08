@@ -30,7 +30,8 @@ fn find_absolute_include_path(include: &FileNode,
         None => {
 
             println!("Unable to locate {:?}", &include.path);
-            println!("Included from file {:?}\n", parent_file);
+            println!("  In local directory {}", local_dir.display());
+            println!("  Included from file {:?}\n", parent_file.display());
             include.clone()
         }
         Some(path_buf) => FileNode::from_path(&path_buf, include.is_system),
